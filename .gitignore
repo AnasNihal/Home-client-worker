@@ -1,0 +1,37 @@
+# -----------------
+# FRONTEND
+# -----------------
+front-end/homefront/node_modules/
+front-end/homefrontdist/
+front-end/homefrontbuild/
+front-end/homefront/.next/
+front-end/homefront/out/
+front-end/homefront/*.log
+front-end/homefront/.env
+front-end/homefront/.env.*.local
+
+# -----------------
+# BACKEND
+# -----------------
+back-end/__pycache__/
+back-end/*.py[cod]
+back-end/*$py.class
+back-end/myenv/
+back-end/env/
+back-end/.venv/
+back-end/ENV/
+back-end/*.sqlite3
+back-end/db.sqlite3
+back-end/media/
+back-end/staticfiles/
+back-end/instance/
+
+# -----------------
+# GENERAL
+# -----------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
