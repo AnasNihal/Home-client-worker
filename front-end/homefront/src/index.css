@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+.maincolor{
+    background-color: #1c392e;
+}
+.buttoncolor{
+    background-color: var(--token-ef11833f-523e-4159-a8d2-79df99502a54, rgb(248, 211, 87));
+}
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 25s linear infinite;
+}
+
+.outlined-number {
+  color: transparent;
+  -webkit-text-stroke: 2px #97bf8a;
+  text-stroke: 2px #97bf8a;
+  font-weight: 500;   /* lighter than bold */
+}
