@@ -1,12 +1,13 @@
 import React from "react";
 
 const serviceNames = [
+  "Electrical Repair",
+  "Plumbing Work",
+  "Carpenter Work",
+  "Carpenter Work",
   "Deep cleaning",
-  "Indoor & outdoor cleaning",
-  "Office cleaning",
-  "Regular cleaning",
-  "Window cleaning",
-  "Carpet cleaning",
+  "Residential cleaning",
+    "Pest Control",
 ];
 
 function SpinnerIcon() {

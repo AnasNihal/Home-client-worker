@@ -24,3 +24,204 @@
   text-stroke: 2px #97bf8a;
   font-weight: 500;   /* lighter than bold */
 }
+
+
+/* Add these classes to your global CSS file (globals.css or index.css) */
+
+/* Fade In Animations */
+.fade-in-up {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+.fade-in-up.animate {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fade-in-left {
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+.fade-in-left.animate {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.fade-in-right {
+  opacity: 0;
+  transform: translateX(30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+.fade-in-right.animate {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.fade-in-scale {
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+.fade-in-scale.animate {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.fade-in {
+  opacity: 0;
+  transition: opacity 1s ease-out;
+}
+
+.fade-in.animate {
+  opacity: 1;
+}
+
+/* Special animation for maid image - fade up without horizontal movement */
+.fade-in-up-maid {
+  opacity: 0;
+  transform: translateY(40px) scale(0.95);
+  transition: opacity 1s ease-out, transform 1s ease-out;
+}
+
+.fade-in-up-maid.animate {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Stagger animations for multiple elements */
+.stagger-1 { transition-delay: 0.1s; }
+.stagger-2 { transition-delay: 0.2s; }
+.stagger-3 { transition-delay: 0.3s; }
+.stagger-4 { transition-delay: 0.4s; }
+.stagger-5 { transition-delay: 0.5s; }
+.stagger-6 { transition-delay: 0.6s; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Extended CSS animations for AboutSection */
+
+/* Base fade animations */
+.fade-in-up {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+.fade-in-up.animate {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fade-in-left {
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+.fade-in-left.animate {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.fade-in-right {
+  opacity: 0;
+  transform: translateX(30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+.fade-in-right.animate {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.fade-in-scale {
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+.fade-in-scale.animate {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.fade-in {
+  opacity: 0;
+  transition: opacity 1s ease-out;
+}
+
+.fade-in.animate {
+  opacity: 1;
+}
+
+/* Extended stagger delays for AboutSection */
+.stagger-1 { transition-delay: 0.1s; }
+.stagger-2 { transition-delay: 0.2s; }
+.stagger-3 { transition-delay: 0.3s; }
+.stagger-4 { transition-delay: 0.4s; }
+.stagger-5 { transition-delay: 0.5s; }
+.stagger-6 { transition-delay: 0.6s; }
+.stagger-7 { transition-delay: 0.7s; }
+.stagger-8 { transition-delay: 0.8s; }
+
+/* Special animation for overlapping images */
+.fade-in-overlap-1 {
+  opacity: 0;
+  transform: translateX(-20px) scale(0.95);
+  transition: opacity 1s ease-out, transform 1s ease-out;
+}
+
+.fade-in-overlap-1.animate {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+
+.fade-in-overlap-2 {
+  opacity: 0;
+  transform: translateX(20px) translateY(20px) scale(0.95);
+  transition: opacity 1s ease-out, transform 1s ease-out;
+}
+
+.fade-in-overlap-2.animate {
+  opacity: 1;
+  transform: translateX(0) translateY(0) scale(1);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .fade-in-up,
+  .fade-in-left, 
+  .fade-in-right,
+  .fade-in-scale,
+  .fade-in-overlap-1,
+  .fade-in-overlap-2 {
+    transition: opacity 0.3s ease-out;
+    transform: none !important;
+  }
+
+  .fade-in-up.animate,
+  .fade-in-left.animate,
+  .fade-in-right.animate,
+  .fade-in-scale.animate,
+  .fade-in-overlap-1.animate,
+  .fade-in-overlap-2.animate {
+    transform: none !important;
+  }
+}   

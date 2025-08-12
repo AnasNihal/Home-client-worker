@@ -4,7 +4,7 @@ import Form from "../components/VideoForm"
 import TopSection from "../components/TopSection"
 import BookingSection from "../components/SimpleBookingSection"
 
-export default function ServicePage(){
+export default function WorkerPage(){
     return(
         <>  
             <TopSection

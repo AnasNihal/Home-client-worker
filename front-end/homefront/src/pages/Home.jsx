@@ -82,7 +82,7 @@ const heroImg =
                                 Trusted experts for all your home needs
                             </p>
                             <Link
-                                to="/services"
+                                to="/worker"
                                 className="inline-block px-6 py-3 bg-yellow text-primary font-semibold rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105"
                             >
                                 Book Now
