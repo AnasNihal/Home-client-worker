@@ -56,14 +56,16 @@ export default function Navbar() {
         <div className="flex justify-between items-center py-4">
 
           {/* Logo - Always visible */}
+         <Link to='/'> 
           <div className="flex items-center gap-2 text-2xl font-bold text-primary">
             <img 
+
               src="/images/OltonLogo.png" 
               alt="Olton Logo" 
               className="h-8 w-auto"
             />
           </div>
-
+          </Link> 
           {/* Desktop Navigation - Hidden on mobile/tablet */}
           <div className="hidden lg:flex">
             <ul className="flex gap-8 text-white font-medium">

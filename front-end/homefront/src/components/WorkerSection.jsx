@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { useScrollAnimation } from "../hooks/useScrollAnimation";
 
 const workers = [
   {
@@ -146,16 +145,11 @@ const serviceCategories = [
   }
 ];
 
+
 export default function WorkersSection() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState("rating");
-
-  // Animation refs
-  const [headerRef, headerVisible] = useScrollAnimation(0.1);
-  const [filtersRef, filtersVisible] = useScrollAnimation(0.15);
-  const [sidebarRef, sidebarVisible] = useScrollAnimation(0.15);
-  const [listRef, listVisible] = useScrollAnimation(0.2);
 
   // Filter workers based on search and category
   const filteredWorkers = workers.filter(worker => {
@@ -185,8 +179,8 @@ export default function WorkersSection() {
     <section className="bg-light_green min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header with Search */}
-        <div className="mb-8" ref={headerRef}>
-          <div className={`text-center mb-8 fade-in-up stagger-1 ${headerVisible ? 'animate' : ''}`}>
+        <div className="mb-8">
+          <div className="text-center mb-8">
             <h1 className="text-3xl md:text-4xl font-bold text-primary mb-2">
               Find Professional Workers
             </h1>
@@ -196,7 +190,7 @@ export default function WorkersSection() {
           </div>
 
           {/* Search Bar */}
-          <div className={`relative max-w-2xl mx-auto mb-6 fade-in-up stagger-2 ${headerVisible ? 'animate' : ''}`}>
+          <div className="relative max-w-2xl mx-auto mb-6">
             <div className="relative">
               <input
                 type="text"
@@ -217,7 +211,7 @@ export default function WorkersSection() {
           </div>
 
           {/* Quick Filters */}
-          <div className={`flex flex-wrap justify-center gap-3 mb-6 fade-in-up stagger-3 ${filtersVisible ? 'animate' : ''}`} ref={filtersRef}>
+          <div className="flex flex-wrap justify-center gap-3 mb-6">
             {serviceCategories.slice(0, 5).map((category) => (
               <button
                 key={category.id}
@@ -240,8 +234,8 @@ export default function WorkersSection() {
 
         <div className="flex gap-8">
           {/* Left Sidebar Filters */}
-          <div className="hidden lg:block w-64 flex-shrink-0" ref={sidebarRef}>
-            <div className={`bg-white rounded-2xl shadow-sm p-6 sticky top-8 fade-in-left stagger-1 ${sidebarVisible ? 'animate' : ''}`}>
+          <div className="hidden lg:block w-64 flex-shrink-0">
+            <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-8">
               <h3 className="text-lg font-semibold text-primary mb-4">Filters</h3>
               
               {/* Category Filter */}
@@ -254,7 +248,7 @@ export default function WorkersSection() {
                       onClick={() => setSelectedCategory(category.id)}
                       className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${
                         selectedCategory === category.id
-                          ? "bg-primary text-white"
+                          ? "bg-primary font-bold"
                           : "hover:bg-gray-50 text-gray-700"
                       }`}
                     >
@@ -307,8 +301,8 @@ export default function WorkersSection() {
           </div>
 
           {/* Workers Grid */}
-          <div className="flex-1" ref={listRef}>
-            <div className={`mb-4 flex justify-between items-center fade-in-up stagger-1 ${listVisible ? 'animate' : ''}`}>
+          <div className="flex-1">
+            <div className="mb-4 flex justify-between items-center">
               <p className="text-gray-600">
                 Showing {sortedWorkers.length} of {workers.length} workers
               </p>
@@ -323,7 +317,7 @@ export default function WorkersSection() {
             </div>
 
             {/* Workers Cards */}
-            <div className={`space-y-4 fade-in-up stagger-2 ${listVisible ? 'animate' : ''}`}>
+            <div className="space-y-4">
               {sortedWorkers.map((worker) => (
                 <WorkerCard key={worker.id} {...worker} />
               ))}
@@ -351,7 +345,7 @@ function WorkerCard({ id, image, name, profession, experience, rating, reviews, 
 
   return (
     <Link
-      to={`/worker-details/${id}`}
+      to={`/worker-details/${id}`} // Updated route path
       className="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border border-gray-100 overflow-hidden block w-full cursor-pointer"
     >
       {/* Card Content */}
@@ -471,3 +465,13 @@ function WorkerCard({ id, image, name, profession, experience, rating, reviews, 
     </Link>
   );
 }
+
+
+
+
+
+
+
+
+
+

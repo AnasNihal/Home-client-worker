@@ -13,9 +13,9 @@ export default function BookingSection() {
         </div>
 
         {/* MAIN 2-COLUMN */}
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-x-16 gap-y-10 items-start">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-x-16 gap-y-8 items-start">
           {/* LEFT: Sticky Image Container */}
-          <div className="relative lg:h-[800px] flex items-start justify-center lg:justify-start mb-8 lg:mb-0">
+          <div className="relative lg:h-[700px] flex items-start justify-center lg:justify-start mb-8 lg:mb-0">
             <div className="sticky top-32 w-full max-w-[660px]">
               <img
                 src="https://images.pexels.com/photos/4099465/pexels-photo-4099465.jpeg?auto=compress&w=900&q=80"
@@ -26,7 +26,7 @@ export default function BookingSection() {
           </div>
 
           {/* RIGHT: Boxes column with natural scroll */}
-          <div className="flex flex-col justify-start min-h-[800px] w-full">
+          <div className="flex flex-col justify-start min-h-[700px] w-full">
             <ProcessBox
               step="01"
               title="Fill-up appointment form"
