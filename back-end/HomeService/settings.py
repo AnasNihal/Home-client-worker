@@ -134,3 +134,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MEDIA_URL = '/media/'   # The base URL path to access media files
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # The folder where images are stored physically
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}

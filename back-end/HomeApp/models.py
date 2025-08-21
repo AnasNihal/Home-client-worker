@@ -35,8 +35,8 @@ class Worker(models.Model):
 
 
 class UserProfile(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="profiles")
-    image = models.ImageField(upload_to='user_image/', blank=True, null=True)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profiles")
+    profileimage = models.ImageField(upload_to='user_image/', blank=True, null=True)
     phone = models.CharField(
         max_length=15,
         validators=[
@@ -48,6 +48,7 @@ class UserProfile(models.Model):
         blank=True,
         null=True
     )
+    bio = models.TextField(blank=True, null=True)  
     address = models.CharField(max_length=255, blank=True, null=True)
     city = models.CharField(max_length=50, blank=True, null=True)
     postal_code = models.CharField(max_length=10, blank=True, null=True)

@@ -17,21 +17,14 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path,include
-from rest_framework import routers
-from HomeApp.views import ServiceCategoryViewset,WorkerViewset,BookingViewset
 from django.conf import settings
 from django.conf.urls.static import static
 
 
-router = routers.DefaultRouter()
-router.register(f'service-category', ServiceCategoryViewset)
-router.register(r'Worker',WorkerViewset)
-router.register(r'Booking',BookingViewset)
-
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path('api/',include(router.urls)),
+    path('',include('HomeApp.urls')),
 ]
 
 
