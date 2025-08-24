@@ -1,6 +1,6 @@
 from django.contrib import admin
-from .models import UserProfile,ServiceCategory,Booking
+from .models import UserProfile,WorkerService
 # Register your models here.
 admin.site.register(UserProfile)
-admin.site.register(ServiceCategory)
-admin.site.register(Booking)
+admin.site.register(WorkerService)
+# admin.site.register(Booking)
