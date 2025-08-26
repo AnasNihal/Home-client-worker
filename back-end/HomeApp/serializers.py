@@ -74,12 +74,12 @@ class WorkerRegistrationSerializer(serializers.Serializer):
 class WorkerServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkerService
-        fileds = ['id','service','description','price']
+        fields = ['id','service','description','price']
 
 class WorkerSerializer(serializers.ModelSerializer):
     username = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
-    service = WorkerServiceSerializer(many=True,read_only = True)
+    services = WorkerServiceSerializer(many=True,read_only = True)
 
     class Meta:
         model = Worker

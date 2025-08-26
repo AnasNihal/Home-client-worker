@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render,get_object_or_404
 from rest_framework.decorators import api_view,permission_classes
 from rest_framework.permissions import IsAuthenticated,AllowAny
 from rest_framework.response import Response 
@@ -14,7 +14,7 @@ from .serializers  import (
     )
 from rest_framework import status
 from django.contrib.auth import authenticate
-from .models import UserProfile
+from .models import UserProfile, Worker, WorkerService
 
 
 
@@ -43,18 +43,14 @@ def user_login(request):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def user_register(request):
     serializer = UserRegistrationSerializer(data = request.data)
     if serializer.is_valid():
         user  = serializer.save()
-        refresh =  RefreshToken.for_user(user)
-        return Response({
-            'user' : UserRegistrationSerializer(user).data,
-            'token': str(refresh.access_token),
-            'refresh':str(refresh)              
-        },status.HTTP_201_CREATED)
+        return Response({'message':'User Registered'},status=status.HTTP_200_OK)
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
-
+                    
 
 @api_view(['GET','PUT'])
 @permission_classes([IsAuthenticated])
@@ -73,4 +69,80 @@ def user_profile(request):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors,status=400)
+    
+# Worker Setup --- >>
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def worker_register(request):
+    serializer = WorkerRegistrationSerializer( data = request.data)
+    if serializer.is_valid():
+       serializer.save()
+       return Response({'message':"Worker Registered"},status=status.HTTP_200_OK)
+    return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET','PUT'])
+@permission_classes([IsAuthenticated])
+def worker_dashboard(request):
+        if request.user.role != "Worker":
+            return Response({"details":"Only the worker can access this page"},status=status.HTTP_403_FORBIDDEN)
+        
+        worker = get_object_or_404(worker, data=request.data)
+
+        if request.method == 'GET':
+            return Response(WorkerSerializer(worker).data)
+        
+        elif request.method == "PUT":
+            serializer = WorkerSerializer(worker, data=request.data , partial = True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_service(request):
+
+        if request.user.role != "Worker":
+            return Response({"details":"Only the worker can access this page"},status=status.HTTP_403_FORBIDDEN)
+        
+        worker = get_object_or_404(worker, data=request.data)
+        serializer = WorkerServiceSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(worker=worker)
+            return Response(serializer.data,status=status.HTTP_201_CREATED)
+        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['PUT','PATCH'])
+@permission_classes([IsAuthenticated])
+def edit_service(request):
+
+    if request.user.role != "worker":
+        return Response({'details':'Only worker can access this page'},status=status.HTTP_403_FORBIDDEN)
+    
+    worker = get_object_or_404(Worker, user = request.user)
+    services = get_object_or_404(WorkerService ,id = services.id ,worker=worker)
+
+    partial = ( request.method == 'PATCH')
+    serializer = WorkerServiceSerializer(services,data=request.data,partial = partial)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+
+        
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_service(request):
+
+    if request.user.role != "worker":
+        return Response({'details':'Only worker can access this page'},status=status.HTTP_403_FORBIDDEN)
+
+    worker = get_object_or_404(Worker, user = request.user)
+    services = get_object_or_404(WorkerService ,id = services.id ,worker=worker)
+    services.delete()
+    return Response(status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+
+
 

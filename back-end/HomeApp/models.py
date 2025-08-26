@@ -63,11 +63,11 @@ class Worker(models.Model):
 
 class WorkerService(models.Model):
     worker = models.ForeignKey(Worker,on_delete=models.CASCADE, related_name='services')
-    service = models.CharField(max_length=100)
+    services = models.CharField(max_length=100)
     price = models.DecimalField(max_digits=8, decimal_places=2, default=100.00)
 
     def __str__(self):
-        return self.service
+        return self.services
 
 
 
