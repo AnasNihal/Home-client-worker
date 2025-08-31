@@ -1,7 +1,10 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import WorkerService,Worker,UserProfile
+from django.contrib.auth import get_user_model
+from .models import WorkerService,Worker,UserProfile,WorkerRating
+from django.db.models import Avg
 
+
+User = get_user_model()
 
 class LoginSerializer(serializers.Serializer):
         refresh = serializers.CharField()
@@ -36,7 +39,7 @@ class UserRegistrationSerializer(serializers.Serializer):
     def create(self,validated_data):
         username = validated_data.pop('username')
         password = validated_data.pop('password')
-        email = validated_data.pop(email,"")
+        email = validated_data.pop('email',"")
         user = User.objects.create_user(username=username , email = email , password=password,role = 'user')
         UserProfile.objects.create(user = user,phone  = validated_data.get('phone',''),address = validated_data.get('address' , ''))
 
@@ -74,18 +77,39 @@ class WorkerRegistrationSerializer(serializers.Serializer):
 class WorkerServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkerService
-        fields = ['id','service','description','price']
+        fields = ['id', 'services', 'description', 'price']
+        
+
+class WorkerRatingSummarySerializer(serializers.ModelSerializer):
+    average_rating = serializers.SerializerMethodField()
+    total_ratings = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Worker  # attach rating info to Worker
+        fields = ['average_rating', 'total_ratings']
+
+    def get_average_rating(self, obj):
+        avg = WorkerRating.objects.filter(worker=obj).aggregate(Avg('rating'))['rating__avg']
+        return round(avg, 1) if avg else 0
+
+    def get_total_ratings(self, obj):
+        return WorkerRating.objects.filter(worker=obj).count()
+    
 
 class WorkerSerializer(serializers.ModelSerializer):
     username = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
-    services = WorkerServiceSerializer(many=True,read_only = True)
+    services = WorkerServiceSerializer(many=True, read_only=True)
+    ratings = WorkerRatingSummarySerializer(source='*', read_only=True)# 🔹 include nested rating summary
 
     class Meta:
         model = Worker
-        fields = ['id','image','username','email','name','phone','profession',
-                  'experience','location',"completed_jobs",'bio', "rating", "comments",'service']
-        extra_kwargs = {  # allow partial updates
+        fields = [
+            'id', 'image', 'username', 'email', 'name', 'phone',
+            'profession', 'experience', 'location', 'bio',
+            'services', 'ratings'  # 🔹 include ratings here
+        ]
+        extra_kwargs = {
             "name": {"required": False},
             "phone": {"required": False},
             "profession": {"required": False},
@@ -93,10 +117,13 @@ class WorkerSerializer(serializers.ModelSerializer):
             "location": {"required": False},
             "bio": {"required": False},
             "email": {"required": False},
-            "rating": {"required": False},
-            "comments": {"required": False},
-             "completed_jobs": {"required": False},
         }
+
+
+
+
+
+    
 
 
 
