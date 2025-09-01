@@ -41,10 +41,9 @@ class UserRegistrationSerializer(serializers.Serializer):
         password = validated_data.pop('password')
         email = validated_data.pop('email',"")
         user = User.objects.create_user(username=username , email = email , password=password,role = 'user')
-        UserProfile.objects.create(user = user,phone  = validated_data.get('phone',''),address = validated_data.get('address' , ''))
+        UserProfile.objects.create(user = user,phone = validated_data.get('phone',''),address = validated_data.get('address' , ''))
 
         return user
-
 
 # Worker serializer
 
@@ -53,7 +52,6 @@ class WorkerRegistrationSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
     # initial worker profile fields:
-    name = serializers.CharField()
     phone = serializers.CharField()
     profession = serializers.CharField(required=False, allow_blank=True)
     experience = serializers.CharField(required=False, allow_blank=True)
@@ -71,7 +69,7 @@ class WorkerRegistrationSerializer(serializers.Serializer):
         email = validated_data.pop("email", "")
         user = User.objects.create_user(username=username, email=email, password=password, role="worker")
         # create Worker profile tied to that account
-        worker = Worker.objects.create(user=user, email=email, **validated_data)
+        worker = Worker.objects.create(user=user,name=username, email=email, **validated_data)
         return worker
 
 class WorkerServiceSerializer(serializers.ModelSerializer):

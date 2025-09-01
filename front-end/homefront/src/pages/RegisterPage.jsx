@@ -1,24 +1,27 @@
+// src/pages/RegisterPage.jsx
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
 export default function Register() {
   const [step, setStep] = useState('userType'); // 'userType', 'userForm', 'workerForm'
-  const [userType, setUserType] = useState('');
+  const [userType, setUserType] = useState(''); // 'user' or 'worker'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
     phone: '',
-    // Worker specific fields
-    serviceCategory: '',
+    // Worker specific fields (renamed per your request)
+    profession: '',     // previously serviceCategory
     experience: '',
-    description: '',
+    description: '',    // previously description -> mapped to bio
+    address: '',        // reused for both customer and worker
     agreeToTerms: false
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
+  // profession / category options (you can edit)
   const serviceCategories = [
     'Cleaning Services',
     'Plumbing',
@@ -32,8 +35,9 @@ export default function Register() {
     'Security Installation'
   ];
 
+  // When user clicks the first cards -> choose which form to show
   const handleUserTypeSelect = (type) => {
-    setUserType(type);
+    setUserType(type); // 'user' or 'worker'
     setStep(type === 'user' ? 'userForm' : 'workerForm');
   };
 
@@ -43,8 +47,8 @@ export default function Register() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-    
-    // Clear error when user starts typing
+
+    // Clear specific field error when user types
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -52,54 +56,35 @@ export default function Register() {
 
   const validateForm = () => {
     const newErrors = {};
-    
-    if (!formData.name.trim()) {
-      newErrors.name = 'Full name is required';
-    }
-    
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email';
-    }
-    
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-    
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-    
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    }
-    
-    // Worker specific validations
+
+    if (!formData.name.trim()) newErrors.name = 'Full name is required';
+    if (!formData.email) newErrors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Please enter a valid email';
+
+    if (!formData.password) newErrors.password = 'Password is required';
+    else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+
+    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
+
     if (userType === 'worker') {
-      if (!formData.serviceCategory) {
-        newErrors.serviceCategory = 'Please select a service category';
-      }
-      if (!formData.experience.trim()) {
-        newErrors.experience = 'Experience is required';
-      }
-      if (!formData.description.trim()) {
-        newErrors.description = 'Service description is required';
-      }
+      if (!formData.profession) newErrors.profession = 'Please select a profession';
+      if (!formData.experience.trim()) newErrors.experience = 'Experience is required';
+      if (!formData.description.trim()) newErrors.description = 'Description is required';
+      if (!formData.address.trim()) newErrors.address = 'Address is required';
+    } else if (userType === 'user') {
+      // Optional for customer (serializer has address optional). Uncomment to require:
+      // if (!formData.address.trim()) newErrors.address = 'Address is required';
     }
-    
-    if (!formData.agreeToTerms) {
-      newErrors.agreeToTerms = 'You must agree to the terms and conditions';
-    }
-    
+
+    if (!formData.agreeToTerms) newErrors.agreeToTerms = 'You must agree to the terms and conditions';
+
     return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     const newErrors = validateForm();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -107,61 +92,73 @@ export default function Register() {
     }
 
     setIsLoading(true);
-    
+
     try {
-      // Replace this with your actual registration API call
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          type: userType
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        // Store user data
-        localStorage.setItem('user', JSON.stringify(data.user));
-        localStorage.setItem('token', data.token);
-        
-        // Redirect based on user type
-        if (userType === 'worker') {
-          window.location.href = '/worker-dashboard';
+      if (userType === 'worker') {
+        // Worker registration — map frontend names to backend serializer fields
+        const payload = {
+          username: formData.name,
+          name: formData.name,
+          password: formData.password,
+          email: formData.email || '',
+          phone: formData.phone,
+          profession: formData.profession,
+          experience: formData.experience,
+          location: formData.address,
+          bio: formData.description
+        };
+
+        const res = await fetch('http://127.0.0.1:8000/auth/worker/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          window.location.href = '/worker/dashboard';
         } else {
-          window.location.href = '/user-dashboard';
+          setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
         }
       } else {
-        setErrors({ submit: data.message || 'Registration failed' });
+        // Customer registration — include address to match serializer
+        const payload = {
+          username: formData.name,
+          password: formData.password,
+          email: formData.email || '',
+          phone: formData.phone,
+          address: formData.address || '',
+          type: 'user'
+        };
+
+        const res = await fetch('http://127.0.0.1:8000/auth/user/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          window.location.href = '/user-dashboard';
+        } else {
+          setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
+        }
       }
-    } catch (error) {
+    } catch (err) {
       setErrors({ submit: 'Network error. Please try again.' });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   const goBack = () => {
-    if (step === 'userForm' || step === 'workerForm') {
-      setStep('userType');
-      setUserType('');
-      setFormData({
-        name: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        phone: '',
-        serviceCategory: '',
-        experience: '',
-        description: '',
-        agreeToTerms: false
-      });
-      setErrors({});
-    }
+    setStep('userType');
+    setUserType('');
   };
 
-  // User Type Selection Step
+  // -----------------------
+  // Render: selection cards
+  // -----------------------
   if (step === 'userType') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-green p-4">
@@ -176,7 +173,7 @@ export default function Register() {
 
           <div className="grid md:grid-cols-2 gap-8">
             {/* Customer Registration Card */}
-            <div 
+            <div
               onClick={() => handleUserTypeSelect('user')}
               className="bg-white rounded-2xl shadow-xl p-8 cursor-pointer transform hover:scale-105 transition-all duration-300 hover:shadow-2xl border-4 border-transparent hover:border-yellow group"
             >
@@ -188,14 +185,12 @@ export default function Register() {
                 </div>
                 <h3 className="text-2xl font-bold text-green mb-4">I need services</h3>
                 <p className="text-gray-600 mb-6">
-                  Find trusted professionals for all your home service needs. 
-                  Book cleaners, plumbers, electricians, and more.
+                  Find trusted professionals for all your home service needs.
                 </p>
                 <div className="space-y-2 text-sm text-gray-500 mb-6">
                   <p className="flex items-center"><span className="text-green mr-2">✓</span> Browse verified service providers</p>
                   <p className="flex items-center"><span className="text-green mr-2">✓</span> Read reviews and ratings</p>
                   <p className="flex items-center"><span className="text-green mr-2">✓</span> Secure booking and payment</p>
-                  <p className="flex items-center"><span className="text-green mr-2">✓</span> 24/7 customer support</p>
                 </div>
                 <button className="w-full bg-gradient-to-r from-yellow to-yellow text-green py-3 px-6 rounded-xl hover:from-yellow hover:to-yellow transition-all duration-300 font-semibold transform group-hover:scale-105 shadow-lg">
                   Register as Customer
@@ -204,7 +199,7 @@ export default function Register() {
             </div>
 
             {/* Service Provider Registration Card */}
-            <div 
+            <div
               onClick={() => handleUserTypeSelect('worker')}
               className="bg-white rounded-2xl shadow-xl p-8 cursor-pointer transform hover:scale-105 transition-all duration-300 hover:shadow-2xl border-4 border-transparent hover:border-yellow group"
             >
@@ -217,14 +212,11 @@ export default function Register() {
                 </div>
                 <h3 className="text-2xl font-bold text-green mb-4">I provide services</h3>
                 <p className="text-gray-600 mb-6">
-                  Join our network of trusted professionals. Grow your business 
-                  and connect with customers in your area.
+                  Join our network of trusted professionals. Grow your business.
                 </p>
                 <div className="space-y-2 text-sm text-gray-500 mb-6">
-                  <p className="flex items-center"><span className="text-green mr-2">✓</span> Access to thousands of customers</p>
+                  <p className="flex items-center"><span className="text-green mr-2">✓</span> Access new customers</p>
                   <p className="flex items-center"><span className="text-green mr-2">✓</span> Flexible scheduling</p>
-                  <p className="flex items-center"><span className="text-green mr-2">✓</span> Secure payments</p>
-                  <p className="flex items-center"><span className="text-green mr-2">✓</span> Business growth tools</p>
                 </div>
                 <button className="w-full bg-gradient-to-r from-green to-green text-yellow py-3 px-6 rounded-xl hover:from-green hover:to-green transition-all duration-300 font-semibold transform group-hover:scale-105 shadow-lg">
                   Register as Service Provider
@@ -246,7 +238,9 @@ export default function Register() {
     );
   }
 
-  // Registration Form Step
+  // -----------------------
+  // Render: the actual form
+  // -----------------------
   return (
     <div className="flex min-h-screen items-center justify-center bg-green p-4">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-8 shadow-xl relative">
@@ -278,79 +272,77 @@ export default function Register() {
             </div>
           )}
 
-          {/* Two-column grid for inputs */}
+          {/* Two-column grid for top inputs */}
           <div className="grid md:grid-cols-2 gap-6">
             {/* Full Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
                 className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${
-                  errors.name 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-300 hover:border-yellow'
+                  errors.name ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
                 }`}
                 placeholder="John Doe"
               />
-              {errors.name && (
-                <p className="mt-2 text-sm text-red-600">{errors.name}</p>
-              )}
+              {errors.name && <p className="mt-2 text-sm text-red-600">{errors.name}</p>}
             </div>
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
                 className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${
-                  errors.email 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-300 hover:border-yellow'
+                  errors.email ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
                 }`}
                 placeholder="you@example.com"
               />
-              {errors.email && (
-                <p className="mt-2 text-sm text-red-600">{errors.email}</p>
-              )}
+              {errors.email && <p className="mt-2 text-sm text-red-600">{errors.email}</p>}
             </div>
           </div>
 
-          {/* Phone & (if you want) a placeholder column for layout consistency */}
+          {/* Phone & Address row (Address shown for customer here) */}
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Phone */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Phone Number
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
               <input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
                 className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${
-                  errors.phone 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-300 hover:border-yellow'
+                  errors.phone ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
                 }`}
                 placeholder="+1 (555) 123-4567"
               />
-              {errors.phone && (
-                <p className="mt-2 text-sm text-red-600">{errors.phone}</p>
-              )}
+              {errors.phone && <p className="mt-2 text-sm text-red-600">{errors.phone}</p>}
             </div>
 
-            {/* empty placeholder or you can add another field here */}
-            <div aria-hidden="true" />
+            {/* If customer, show Address in this column to keep symmetry */}
+            {userType === 'user' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${
+                    errors.address ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
+                  }`}
+                  placeholder="Your address"
+                />
+                {errors.address && <p className="mt-2 text-sm text-red-600">{errors.address}</p>}
+              </div>
+            ) : (
+              <div aria-hidden="true" />
+            )}
           </div>
 
           {/* Worker-specific fields (two columns) */}
@@ -358,72 +350,69 @@ export default function Register() {
             <>
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Service Category
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Profession</label>
                   <select
-                    name="serviceCategory"
-                    value={formData.serviceCategory}
+                    name="profession"
+                    value={formData.profession}
                     onChange={handleChange}
                     className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${
-                      errors.serviceCategory 
-                        ? 'border-red-500 bg-red-50' 
-                        : 'border-gray-300 hover:border-yellow'
+                      errors.profession ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
                     }`}
                   >
-                    <option value="">Select your service category</option>
+                    <option value="">Select your profession</option>
                     {serviceCategories.map((category) => (
                       <option key={category} value={category}>
                         {category}
                       </option>
                     ))}
                   </select>
-                  {errors.serviceCategory && (
-                    <p className="mt-2 text-sm text-red-600">{errors.serviceCategory}</p>
-                  )}
+                  {errors.profession && <p className="mt-2 text-sm text-red-600">{errors.profession}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Years of Experience
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Years of Experience</label>
                   <input
                     type="text"
                     name="experience"
                     value={formData.experience}
                     onChange={handleChange}
                     className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${
-                      errors.experience 
-                        ? 'border-red-500 bg-red-50' 
-                        : 'border-gray-300 hover:border-yellow'
+                      errors.experience ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
                     }`}
                     placeholder="e.g., 5 years"
                   />
-                  {errors.experience && (
-                    <p className="mt-2 text-sm text-red-600">{errors.experience}</p>
-                  )}
+                  {errors.experience && <p className="mt-2 text-sm text-red-600">{errors.experience}</p>}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Service Description
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
                   rows={4}
                   className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent resize-none ${
-                    errors.description 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-300 hover:border-yellow'
+                    errors.description ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
                   }`}
                   placeholder="Briefly describe your services and expertise"
                 />
-                {errors.description && (
-                  <p className="mt-2 text-sm text-red-600">{errors.description}</p>
-                )}
+                {errors.description && <p className="mt-2 text-sm text-red-600">{errors.description}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${
+                    errors.address ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
+                  }`}
+                  placeholder="Your service area / address"
+                />
+                {errors.address && <p className="mt-2 text-sm text-red-600">{errors.address}</p>}
               </div>
             </>
           )}
@@ -431,45 +420,33 @@ export default function Register() {
           {/* Passwords side-by-side */}
           <div className="grid md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
               <input
                 type="password"
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
                 className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${
-                  errors.password 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-300 hover:border-yellow'
+                  errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
                 }`}
                 placeholder="••••••••"
               />
-              {errors.password && (
-                <p className="mt-2 text-sm text-red-600">{errors.password}</p>
-              )}
+              {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
               <input
                 type="password"
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${
-                  errors.confirmPassword 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-300 hover:border-yellow'
+                  errors.confirmPassword ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'
                 }`}
                 placeholder="••••••••"
               />
-              {errors.confirmPassword && (
-                <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>
-              )}
+              {errors.confirmPassword && <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>}
             </div>
           </div>
 
@@ -486,19 +463,15 @@ export default function Register() {
               />
               <label htmlFor="agreeToTerms" className="ml-3 block text-sm text-gray-700">
                 I agree to the{' '}
-                <Link to="/terms" className="text-yellow hover:text-yellow font-semibold hover:underline">
-                  Terms and Conditions
-                </Link>{' '}
+                <Link to="/terms" className="text-yellow hover:text-yellow font-semibold hover:underline">Terms and Conditions</Link>{' '}
                 and{' '}
-                <Link to="/privacy" className="text-yellow hover:text-yellow font-semibold hover:underline">
-                  Privacy Policy
-                </Link>
+                <Link to="/privacy" className="text-yellow hover:text-yellow font-semibold hover:underline">Privacy Policy</Link>
               </label>
             </div>
             {errors.agreeToTerms && <p className="text-sm text-red-600 font-medium">{errors.agreeToTerms}</p>}
           </div>
 
-          {/* Enhanced Register Button */}
+          {/* Submit */}
           <button
             type="submit"
             disabled={isLoading}
@@ -521,9 +494,7 @@ export default function Register() {
         {/* Login Link */}
         <p className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold text-yellow hover:text-yellow hover:underline transition-colors">
-            Sign in here
-          </Link>
+          <Link to="/login" className="font-semibold text-yellow hover:text-yellow hover:underline transition-colors">Sign in here</Link>
         </p>
       </div>
     </div>

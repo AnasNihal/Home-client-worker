@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated,AllowAny
 from rest_framework.response import Response 
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.db.models import Avg
 from .serializers  import (
     UserRegistrationSerializer,
     UserProfileSerializer,
@@ -11,7 +12,6 @@ from .serializers  import (
     WorkerServiceSerializer,
     WorkerSerializer,
     LoginSerializer,
-    WorkerRatingSummarySerializer,
     )
 from rest_framework import status
 from django.contrib.auth import authenticate
@@ -143,17 +143,6 @@ def delete_service(request,service_id):
     services = get_object_or_404(WorkerService ,id = service_id,worker=worker)
     services.delete()
     return Response(status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
-
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from django.shortcuts import get_object_or_404
-from django.db.models import Avg
-
-from .models import Worker, WorkerRating
-from .serializers import WorkerSerializer
-
 
 # ✅ List all workers with ratings included
 @api_view(['GET'])
