@@ -13,17 +13,48 @@ class LoginSerializer(serializers.Serializer):
         username = serializers.Serializer()
 
 # User Serializer 
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source = 'user.username', read_only = True)
-    email = serializers.EmailField(source = 'user.email')
-    first_name = serializers.CharField(source = 'user.first_name')
-    last_name = serializers.CharField(source = 'user.last_name')
+    username = serializers.CharField(source="user.username", read_only=True)
+    email = serializers.EmailField(source="user.email", required=False, allow_blank=True)
+    first_name = serializers.CharField(source="user.first_name", required=False, allow_blank=True)
+    last_name = serializers.CharField(source="user.last_name", required=False, allow_blank=True)
 
     class Meta:
         model = UserProfile
-        fields = ['username','first_name','last_name','email','phone','bio','profileimage',
-                  'address','city','postal_code','country']
-    
+        fields = [
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "bio",
+            "profileimage",
+            "address",
+            "city",
+            "postal_code",
+            "country",
+        ]
+
+    def update(self, instance, validated_data):
+        # Extract nested user data
+        user_data = validated_data.pop('user', {})
+        user = instance.user
+
+        # Update user fields
+        for attr, value in user_data.items():
+            setattr(user, attr, value)
+        user.save()
+
+        # Update UserProfile fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        return instance
+
+
 class UserRegistrationSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only = True)

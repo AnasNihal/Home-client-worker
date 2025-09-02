@@ -11,7 +11,7 @@ urlpatterns = [
     # user urls
     path('auth/login',views.login,name = 'login'),
     path('auth/user/register',views.user_register,name = 'user_register'),   
-    path('user/profile/me',views.user_profile,name='user_profile'),
+    path('user/profile',views.user_profile,name='user_profile'),
 
     # Worker urls
     path('auth/worker/register',views.worker_register,name='worker_register'),

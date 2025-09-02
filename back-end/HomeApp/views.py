@@ -24,24 +24,22 @@ from .models import UserProfile, Worker, WorkerService,WorkerRating
 def login(request):
     username = request.data.get('username')
     password = request.data.get('password')
-    user = authenticate(username= username , password = password)
+    user = authenticate(username=username, password=password)
 
     if not user:
-        return Response({"details":"Invalid Credintials"},
-        status=status.HTTP_401_UNAUTHORIZED)
-    
+        return Response({"detail": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
     refresh = RefreshToken.for_user(user)
+
     payload = {
-        'refresh':str(refresh),
-        'access':str(refresh.access_token),
-        'role':user.role,   
-        'username':user.username 
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+        'role': user.role.lower(),   # 👈 always lower-case ("user"/"worker")
+        'username': user.username
     }
-    out = LoginSerializer(payload).data
-    return Response(out,status=status.HTTP_200_OK)
+    return Response(payload, status=status.HTTP_200_OK)
+
     
-
-
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_register(request):
@@ -68,6 +66,7 @@ def user_profile(request):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
+        print("Serializer errors:", serializer.errors)
         return Response(serializer.errors,status=400)
     
 # Worker Setup --- >>
@@ -82,67 +81,66 @@ def worker_register(request):
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET','PUT'])
+@api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])
 def worker_dashboard(request):
-        if request.user.role != "worker":
-            return Response({"details":"Only the worker can access this page"},status=status.HTTP_403_FORBIDDEN)
-        
-        worker = get_object_or_404(Worker, data=request.data)
+    if request.user.role.lower() != "worker":
+        return Response({"detail": "Only workers can access this page"}, status=403)
 
-        if request.method == 'GET':
-            return Response(WorkerSerializer(worker).data)
-        
-        elif request.method == "PUT":
-            serializer = WorkerSerializer(worker, data=request.data , partial = True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+    worker = get_object_or_404(Worker, user=request.user)
+
+    if request.method == 'GET':
+        return Response(WorkerSerializer(worker).data)
+
+    elif request.method == "PUT":
+        serializer = WorkerSerializer(worker, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_service(request):
+    if request.user.role.lower() != "worker":
+        return Response({"detail": "Only workers can add services"}, status=403)
 
-        if request.user.role != "Worker":
-            return Response({"details":"Only the worker can access this page"},status=status.HTTP_403_FORBIDDEN)
-        
-        worker = get_object_or_404(worker, data=request.data)
-        serializer = WorkerServiceSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(worker=worker)
-            return Response(serializer.data,status=status.HTTP_201_CREATED)
-        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+    worker = get_object_or_404(Worker, user=request.user)
+    serializer = WorkerServiceSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save(worker=worker)  # 👈 tie service to logged-in worker
+        return Response(serializer.data, status=201)
+    return Response(serializer.errors, status=400)
 
-@api_view(['PUT','PATCH'])
+
+@api_view(['PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
-def edit_service(request,service_id):
+def edit_service(request, service_id):
+    if request.user.role.lower() != "worker":
+        return Response({'detail': 'Only workers can edit services'}, status=403)
 
-    if request.user.role != "worker":
-        return Response({'details':'Only worker can access this page'},status=status.HTTP_403_FORBIDDEN)
-    
-    worker = get_object_or_404(Worker, user = request.user)
-    services = get_object_or_404(WorkerService ,id = service_id ,worker=worker)
+    worker = get_object_or_404(Worker, user=request.user)
+    service = get_object_or_404(WorkerService, id=service_id, worker=worker)
 
-    partial = ( request.method == 'PATCH')
-    serializer = WorkerServiceSerializer(services,data=request.data,partial = partial)
+    serializer = WorkerServiceSerializer(service, data=request.data, partial=(request.method == 'PATCH'))
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data)
-    return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=400)
 
         
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-def delete_service(request,service_id):
+def delete_service(request, service_id):
+    if request.user.role.lower() != "worker":
+        return Response({'detail': 'Only workers can delete services'}, status=403)
 
-    if request.user.role != "worker":
-        return Response({'details':'Only worker can access this page'},status=status.HTTP_403_FORBIDDEN)
+    worker = get_object_or_404(Worker, user=request.user)
+    service = get_object_or_404(WorkerService, id=service_id, worker=worker)
 
-    worker = get_object_or_404(Worker, user = request.user)
-    services = get_object_or_404(WorkerService ,id = service_id,worker=worker)
-    services.delete()
-    return Response(status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+    service.delete()
+    return Response(status=204)
 
 # ✅ List all workers with ratings included
 @api_view(['GET'])

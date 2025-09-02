@@ -14,6 +14,7 @@
   import BlogPage from './pages/BlogPage';
   import Login from './pages/LoginPage';  
   import Register from './pages/RegisterPage';
+  import ProfilePage from './pages/UserProfilePage';
 
 function App() {
   const location = useLocation();
@@ -34,6 +35,7 @@ function App() {
           <Route path="/contactus" element={<ContactUs />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/profile/me" element={<ProfilePage />} />
         </Routes>
       </main>
       {!hideLayout && <Footer />}
