@@ -1,9 +1,10 @@
 from django.shortcuts import render,get_object_or_404
-from rest_framework.decorators import api_view,permission_classes
+from rest_framework.decorators import api_view,permission_classes,parser_classes
 from rest_framework.permissions import IsAuthenticated,AllowAny
 from rest_framework.response import Response 
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Avg
 from .serializers  import (
     UserRegistrationSerializer,
@@ -52,6 +53,7 @@ def user_register(request):
 
 @api_view(['GET','PUT'])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser]) 
 def user_profile(request):
     if request.user.is_anonymous:
       return Response({"detail": "Authentication required"}, status=401)
@@ -62,7 +64,7 @@ def user_profile(request):
         return Response(serializer.data)
 
     elif request.method == 'PUT':
-        serializer = UserProfileSerializer(profile,data=request.data,partial = True)
+        serializer = UserProfileSerializer(profile,data=request.data,partial = True,context={'request': request}, )
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)

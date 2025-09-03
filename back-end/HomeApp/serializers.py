@@ -20,6 +20,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", required=False, allow_blank=True)
     first_name = serializers.CharField(source="user.first_name", required=False, allow_blank=True)
     last_name = serializers.CharField(source="user.last_name", required=False, allow_blank=True)
+    profileimage = serializers.ImageField(use_url=True, required=False, allow_null=True)
+
 
     class Meta:
         model = UserProfile
