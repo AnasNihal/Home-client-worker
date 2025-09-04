@@ -20,8 +20,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", required=False, allow_blank=True)
     first_name = serializers.CharField(source="user.first_name", required=False, allow_blank=True)
     last_name = serializers.CharField(source="user.last_name", required=False, allow_blank=True)
-    profileimage = serializers.ImageField(use_url=True, required=False, allow_null=True)
-
+    profileimage = serializers.ImageField(required=False, allow_null=True)
+    profileimage_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = UserProfile
@@ -33,28 +33,30 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "phone",
             "bio",
             "profileimage",
+            "profileimage_url",
             "address",
             "city",
             "postal_code",
             "country",
         ]
 
-    def update(self, instance, validated_data):
-        # Extract nested user data
-        user_data = validated_data.pop('user', {})
-        user = instance.user
+    def get_profileimage_url(self, obj):
+        request = self.context.get("request")
+        if obj.profileimage:
+            return request.build_absolute_uri(obj.profileimage.url)
+        return None
 
-        # Update user fields
+    def update(self, instance, validated_data):
+        # handle nested user fields
+        user_data = validated_data.pop("user", {})
+        user = instance.user
         for attr, value in user_data.items():
             setattr(user, attr, value)
         user.save()
 
-        # Update UserProfile fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-
-        return instance
+        # let DRF handle saving profileimage + other fields
+        return super().update(instance, validated_data)
+    
 
 
 class UserRegistrationSerializer(serializers.Serializer):

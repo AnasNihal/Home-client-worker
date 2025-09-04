@@ -8,7 +8,7 @@ async function fetchWithAuth(url, options = {}) {
     window.location.href = "/login";
     return null;
   }
-  const headers = { ...options.headers, Authorization: `Bearer ${token}` };
+  const headers = { ...(options.headers || {}), Authorization: `Bearer ${token}` };
   const response = await fetch(url, { ...options, headers });
   if (response.status === 401) {
     localStorage.removeItem("access");
@@ -60,6 +60,7 @@ export default function UserProfilePage() {
       const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile");
       if (!res || !res.ok) throw new Error("Failed to fetch profile");
       const data = await res.json();
+
       setProfile(data);
       setForm({
         first_name: data.first_name || "",
@@ -73,7 +74,9 @@ export default function UserProfilePage() {
         postal_code: data.postal_code || "",
         country: data.country || "",
       });
-      setPreview(data.profileimage || null);
+
+      // ✅ Prefer absolute URL from backend
+      setPreview(data.profileimage_url || data.profileimage || null);
     } catch (err) {
       setError(err.message || "Something went wrong");
     }
@@ -81,12 +84,16 @@ export default function UserProfilePage() {
 
   useEffect(() => {
     fetchProfile();
-  }, []);
+  }, []); // only run once
 
   /* ---------------- Computed values ---------------- */
   const displayName = useMemo(() => {
     if (!profile) return "Unknown User";
-    return `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || profile.username || "Unknown User";
+    return (
+      `${profile.first_name || ""} ${profile.last_name || ""}`.trim() ||
+      profile.username ||
+      "Unknown User"
+    );
   }, [profile]);
 
   const initials = useMemo(() => {
@@ -96,6 +103,35 @@ export default function UserProfilePage() {
     return (first + last).toUpperCase();
   }, [profile]);
 
+  /* ---------------- Image Upload Helper ---------------- */
+  const uploadImage = async (file) => {
+    const data = new FormData();
+    data.append("profileimage", file);
+
+    try {
+      const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile", {
+        method: "PUT",
+        body: data,
+      });
+
+      if (!res.ok) {
+        console.error("Image upload failed");
+        return;
+      }
+
+      const updated = await res.json();
+      setProfile(updated);
+
+      // ✅ Refresh preview with backend URL
+      const newUrl = updated.profileimage_url || updated.profileimage;
+      setPreview(
+        newUrl ? `${newUrl}${newUrl.includes("?") ? "&" : "?"}t=${Date.now()}` : null
+      );
+    } catch (err) {
+      console.error("Error uploading image:", err);
+    }
+  };
+
   /* ---------------- Handlers ---------------- */
   const onChange = (e) => {
     const { name, value, files } = e.target;
@@ -103,6 +139,9 @@ export default function UserProfilePage() {
       const file = files?.[0] || null;
       setForm((f) => ({ ...f, profileimage: file }));
       setPreview(file ? URL.createObjectURL(file) : profile?.profileimage || null);
+
+      // 🔥 Auto-upload image as soon as it's selected
+      if (file) uploadImage(file);
     } else {
       setForm((f) => ({ ...f, [name]: value }));
     }
@@ -131,9 +170,18 @@ export default function UserProfilePage() {
     setError("");
     try {
       const data = new FormData();
+
+      // Append all non-empty fields except profileimage
       Object.entries(form).forEach(([key, value]) => {
-        if (value !== null && value !== "") data.append(key, value);
+        if (key !== "profileimage" && value !== null && value !== "") {
+          data.append(key, value);
+        }
       });
+
+      // ✅ Only append profileimage if it's a File
+      if (form.profileimage instanceof File) {
+        data.append("profileimage", form.profileimage);
+      }
 
       const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile", {
         method: "PUT",
@@ -148,7 +196,12 @@ export default function UserProfilePage() {
       const updated = await res.json();
       setProfile(updated);
       setEditing(false);
-      setPreview(updated.profileimage || null);
+
+      // ✅ Prefer backend URL, add cache-busting
+      const newUrl = updated.profileimage_url || updated.profileimage || preview;
+      setPreview(
+        newUrl ? `${newUrl}${newUrl.includes("?") ? "&" : "?"}t=${Date.now()}` : null
+      );
     } catch (err) {
       setError(err.message || "Failed to save changes");
     } finally {
@@ -169,44 +222,51 @@ export default function UserProfilePage() {
   if (!profile) return <Skeleton />;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 pt-24">
+    <div className="min-h-screen bg-green py-12 pt-24">
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col md:flex-row">
         {/* Left: Profile Image */}
-   <div className="md:w-1/3 bg-green flex flex-col items-center p-6">
-  {/* Clickable Profile Image */}
-  <label className="cursor-pointer w-40 h-40 overflow-hidden border-4 border-white shadow-md relative">
-    {preview ? (
-      <img src={preview} alt="Profile" className="w-full h-full object-cover" />
-    ) : (
-      <div className="w-full h-full flex items-center justify-center text-white text-3xl font-bold bg-emerald-600">
-        {initials}
-      </div>
-    )}
-    <input
-      type="file"
-      name="profileimage"
-      accept="image/*"
-      onChange={onChange}
-      className="hidden"
-    />
-  </label>
+        <div className="md:w-1/3 bg-light_green flex flex-col items-center p-6">
+          <label className="cursor-pointer w-40 h-40 overflow-hidden border-4 rounded-xl border-white shadow-md relative">
+            {preview ? (
+              <img
+                src={preview}
+                alt="Profile"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white text-3xl font-bold bg-emerald-600">
+                {initials}
+              </div>
+            )}
+            <input
+              type="file"
+              name="profileimage"
+              accept="image/*"
+              onChange={onChange}
+              className="hidden"
+            />
+          </label>
 
-  {!editing && (
-    <h2 className="mt-4 text-xl font-semibold text-white">{displayName}</h2>
-  )}
-</div>
-
-
+          {!editing && (
+            <h2 className="mt-4 text-xl font-semibold text-white">{displayName}</h2>
+          )}
+        </div>
 
         {/* Right: Details */}
         <div className="md:w-2/3 p-6 md:p-10 bg-light_green flex flex-col justify-between">
           {!editing ? (
             <ProfileView profile={profile} />
           ) : (
-            <ProfileEdit form={form} preview={preview} onChange={onChange} onCancel={onCancel} onSave={onSave} saving={saving} />
+            <ProfileEdit
+              form={form}
+              preview={preview}
+              onChange={onChange}
+              onCancel={onCancel}
+              onSave={onSave}
+              saving={saving}
+            />
           )}
 
-          {/* Action buttons */}
           {!editing && (
             <div className="mt-6 flex justify-end gap-3">
               <button
@@ -258,7 +318,7 @@ function ProfileView({ profile }) {
   );
 }
 
-function ProfileEdit({ form, preview, onChange, onCancel, onSave, saving }) {
+function ProfileEdit({ form, onChange, onCancel, onSave, saving }) {
   return (
     <form
       className="space-y-6"
@@ -290,10 +350,19 @@ function ProfileEdit({ form, preview, onChange, onCancel, onSave, saving }) {
       </Section>
 
       <div className="flex justify-end gap-3">
-        <button type="button" onClick={onCancel} disabled={saving} className="px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-60">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          className="px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-60"
+        >
           Cancel
         </button>
-        <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-600 text-white rounded-lg shadow-sm hover:brightness-110 transition-colors disabled:opacity-60">
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-4 py-2 bg-emerald-600 text-white rounded-lg shadow-sm hover:brightness-110 transition-colors disabled:opacity-60"
+        >
           {saving ? "Saving..." : "Save"}
         </button>
       </div>

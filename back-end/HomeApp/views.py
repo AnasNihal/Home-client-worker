@@ -60,13 +60,18 @@ def user_profile(request):
 
     profile , create = UserProfile.objects.get_or_create(user = request.user)
     if request.method == 'GET':
-        serializer = UserProfileSerializer(profile)
+        serializer = UserProfileSerializer(profile,context={"request": request})
+        print("RETURNED DATA:", serializer.data)
         return Response(serializer.data)
 
     elif request.method == 'PUT':
+        print("FILES:", request.FILES)
+        print("DATA:", request.data)
+
         serializer = UserProfileSerializer(profile,data=request.data,partial = True,context={'request': request}, )
         if serializer.is_valid():
-            serializer.save()
+            instance = serializer.save()
+            print("SAVED IMAGE:", instance.profileimage.url if instance.profileimage else "None")
             return Response(serializer.data)
         print("Serializer errors:", serializer.errors)
         return Response(serializer.errors,status=400)
