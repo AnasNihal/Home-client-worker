@@ -288,7 +288,7 @@ function WorkerCard({ id, image, name, profession, experience, rating, reviews, 
   const skillsList = Array.isArray(skills) ? skills : [];
 
   return (
-    <Link to={`/worker-details/${id}`} className="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border border-gray-100 overflow-hidden block w-full cursor-pointer">
+    <Link to={`/workers/${id}`} className="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border border-gray-100 overflow-hidden block w-full cursor-pointer">
       <div className="flex p-4 sm:p-5 md:p-6 gap-4 sm:gap-5 md:gap-6">
         <div className="relative flex-shrink-0">
           <img src={image} alt={name} className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full object-cover ring-2 ring-gray-200 group-hover:ring-primary transition-colors" />

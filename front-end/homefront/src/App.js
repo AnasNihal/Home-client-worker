@@ -9,7 +9,7 @@
   import Footer from './components/Footer';
   import AboutPage from './pages/AboutPage';
   import BookingPage from './pages/BookingPage';
-  import ServiceDetails from './pages/WorkerDetails';
+  import WorkerDetails from './pages/WorkerDetails';
   import ContactUs from './pages/contactus';
   import BlogPage from './pages/BlogPage';
   import Login from './pages/LoginPage';  
@@ -31,7 +31,7 @@ function App() {
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/booking" element={<BookingPage />} />
-          <Route path="/worker-details/:workerId" element={<ServiceDetails />} />
+          <Route path="/workers/:workerId" element={<WorkerDetails />} />
           <Route path="/contactus" element={<ContactUs />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />

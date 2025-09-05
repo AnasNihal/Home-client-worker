@@ -36,6 +36,12 @@ class UserProfile(models.Model):
     def __str__(self):
         return self.user.username
     
+class Profession(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(unique=True)
+
+    def __str__(self):
+        return self.name
 
 
 class Worker(models.Model):
@@ -50,8 +56,8 @@ class Worker(models.Model):
                 message="Enter a valid phone number."
             )
         ]
-    )
-    profession = models.CharField(max_length=50 ,null=True, blank=True)
+    )   
+    profession = models.ForeignKey(Profession,on_delete=models.CASCADE)
     experience = models.CharField(max_length=50, null=True, blank=True)
     location = models.CharField(max_length=50, null=True)
     bio = models.TextField(blank=True, null=True)

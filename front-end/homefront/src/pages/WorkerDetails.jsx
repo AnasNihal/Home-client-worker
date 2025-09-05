@@ -1,115 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-
-const workersData = [
-  {
-    id: "john-electrician",
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face",
-    name: "John Smith",
-    profession: "Electrician",
-    category: "electrical-repairs",
-    experience: "8 years",
-    rating: 4.8,
-    reviews: 156,
-    location: "Downtown Area",
-    availability: "Available Today",
-    completedJobs: 234,
-    verified: true,
-    bio: "Professional electrician with 8+ years of experience in residential and commercial electrical work. Specializing in modern electrical systems, safety installations, and energy-efficient solutions.",
-    languages: ["English", "Hindi", "Spanish"],
-    certifications: ["Licensed Electrician", "Safety Certified", "Energy Audit Specialist"],
-    services: [
-      {
-        id: "wiring-repair",
-        name: "Wiring Repairs & Upgrades",
-        description: "Complete wiring repair, rewiring, and electrical panel upgrades",
-        price: 899,
-        duration: "2-4 hours",
-        includes: ["Safety inspection", "Wire replacement", "Panel upgrade", "Testing"]
-      },
-      {
-        id: "fan-installation",
-        name: "Fan Installation",
-        description: "Ceiling, wall, and exhaust fan installation with warranty",
-        price: 499,
-        duration: "1-2 hours", 
-        includes: ["Fan mounting", "Wiring connection", "Switch installation", "Testing"]
-      },
-      {
-        id: "switchboard-setup",
-        name: "Switchboard & Socket Installation",
-        description: "New switchboards, sockets, and MCB setup with safety checks",
-        price: 699,
-        duration: "1-3 hours",
-        includes: ["MCB installation", "Socket wiring", "Safety testing", "Labeling"]
-      },
-      {
-        id: "lighting-solutions",
-        name: "LED & Smart Lighting",
-        description: "Modern LED and smart lighting installation and setup",
-        price: 1299,
-        duration: "2-5 hours",
-        includes: ["LED installation", "Smart controls", "Dimmer setup", "App configuration"]
-      }
-    ],
-    gallery: [
-      "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=300&h=200&fit=crop",
-      "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=300&h=200&fit=crop",
-      "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=300&h=200&fit=crop"
-    ]
-  },
-  {
-    id: "mike-plumber", 
-    image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
-    name: "Mike Johnson",
-    profession: "Plumber",
-    category: "plumbing",
-    experience: "12 years",
-    rating: 4.9,
-    reviews: 203,
-    location: "Central District",
-    availability: "Available Tomorrow",
-    completedJobs: 387,
-    verified: true,
-    bio: "Expert plumber with over 12 years of experience in residential and commercial plumbing. Specialized in modern plumbing solutions, leak detection, and bathroom renovations.",
-    languages: ["English", "Hindi"],
-    certifications: ["Master Plumber License", "Leak Detection Specialist", "Green Plumbing Certified"],
-    services: [
-      {
-        id: "leak-repair",
-        name: "Leak Detection & Repair",
-        description: "Professional leak detection and repair for all pipe systems",
-        price: 799,
-        duration: "1-3 hours",
-        includes: ["Leak detection", "Pipe repair", "Pressure testing", "Cleanup"]
-      },
-      {
-        id: "bathroom-plumbing",
-        name: "Bathroom Plumbing",
-        description: "Complete bathroom plumbing installation and renovation",
-        price: 2499,
-        duration: "1-2 days",
-        includes: ["Fixture installation", "Pipe routing", "Drain setup", "Water pressure optimization"]
-      },
-      {
-        id: "faucet-installation",
-        name: "Faucet & Fixture Installation",
-        description: "Install and repair faucets, taps, and bathroom fixtures",
-        price: 599,
-        duration: "30min-1 hour",
-        includes: ["Fixture mounting", "Connection setup", "Leak testing", "Cleanup"]
-      }
-    ],
-    gallery: [
-      "https://images.unsplash.com/photo-1578328819058-b69f3a3b0f6b?w=300&h=200&fit=crop",
-      "https://images.unsplash.com/photo-1540553016722-983e48a2cd10?w=300&h=200&fit=crop",
-      "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=300&h=200&fit=crop"
-    ]
-  }
-];
 
 export default function WorkerDetails() {
   const { workerId } = useParams();
+  const [worker, setWorker] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedService, setSelectedService] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
@@ -117,22 +13,25 @@ export default function WorkerDetails() {
   const [reviewText, setReviewText] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
 
-  const worker = workersData.find((w) => w.id === workerId);
+  useEffect(() => {
+    const fetchWorkerDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`http://127.0.0.1:8000/worker/worker_details/${workerId} `);
+        if (!response.ok) {
+          throw new Error('Worker not found');
+        }
+        const data = await response.json();
+        setWorker(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (!worker) {
-    return (
-      <div className="max-w-4xl mx-auto p-8 text-center mt-20">
-        <h2 className="text-3xl font-bold mb-4">Worker Not Found</h2>
-        <p className="mb-6">The requested worker does not exist.</p>
-        <Link
-          to="/workers"
-          className="inline-block px-6 py-3 bg-yellow text-primary font-semibold rounded-lg hover:bg-yellow/90 transition"
-        >
-          Back to Workers
-        </Link>
-      </div>
-    );
-  }
+    fetchWorkerDetails();
+  }, [workerId]);
 
   const timeSlots = [
     "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
@@ -160,6 +59,30 @@ export default function WorkerDetails() {
     setReviewText("");
   };
 
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 text-center mt-20">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+        <p className="mt-4 text-lg">Loading worker details...</p>
+      </div>
+    );
+  }
+
+  if (error || !worker) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 text-center mt-20">
+        <h2 className="text-3xl font-bold mb-4">Worker Not Found</h2>
+        <p className="mb-6">{error || "The requested worker does not exist."}</p>
+        <Link
+          to="/worker"
+          className="inline-block px-6 py-3 bg-yellow text-primary font-semibold rounded-lg hover:bg-yellow/90 transition"
+        >
+          Back to Workers
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-green pt-10 min-h-screen">
       {/* Hero Section */}
@@ -171,17 +94,10 @@ export default function WorkerDetails() {
             <div className="lg:col-span-1 flex justify-center">
               <div className="relative">
                 <img
-                  src={worker.image}
+                  src={worker.image || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face"}
                   alt={worker.name}
                   className="w-64 h-64 sm:w-80 sm:h-80 rounded-3xl object-cover shadow-2xl border-4 border-white"
                 />
-                {worker.verified && (
-                  <div className="absolute -top-2 -right-2 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center border-4 border-white">
-                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -192,25 +108,29 @@ export default function WorkerDetails() {
               <div className="absolute bottom-[-30px] left-[-30px] w-16 h-16 bg-white/10 rounded-full animate-bounce-slow delay-200" />
 
               {/* Main Header: Name & Profession */}
-              <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight drop-shadow-md">{worker.name}</h1>
-              <p className="text-xl md:text-2xl mb-6 opacity-90">{worker.profession}</p>
+              <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight drop-shadow-md">
+                {worker.name || 'Professional Worker'}
+              </h1>
+              <p className="text-xl md:text-2xl mb-6 opacity-90">{worker.profession || 'Service Provider'}</p>
 
               {/* Stats Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
                 <div className="flex flex-col items-center justify-center bg-white/20 backdrop-blur-md rounded-xl p-4 hover:bg-white/30 transition-all duration-300">
-                  <div className="text-3xl font-bold mb-2">{worker.rating}</div>
+                  <div className="text-3xl font-bold mb-2">{worker.rating || '4.5'}</div>
                   <div className="text-sm opacity-80">Rating</div>
                 </div>
                 <div className="flex flex-col items-center justify-center bg-white/20 backdrop-blur-md rounded-xl p-4 hover:bg-white/30 transition-all duration-300">
-                  <div className="text-3xl font-bold mb-2">{worker.reviews}</div>
+                  <div className="text-3xl font-bold mb-2">{worker.reviews || '0'}</div>
                   <div className="text-sm opacity-80">Reviews</div>
                 </div>
                 <div className="flex flex-col items-center justify-center bg-white/20 backdrop-blur-md rounded-xl p-4 hover:bg-white/30 transition-all duration-300">
-                  <div className="text-3xl font-bold mb-2">{worker.completedJobs}</div>
+                  <div className="text-3xl font-bold mb-2">{worker.completedJobs || '0'}</div>
                   <div className="text-sm opacity-80">Jobs Done</div>
                 </div>
                 <div className="flex flex-col items-center justify-center bg-white/20 backdrop-blur-md rounded-xl p-4 hover:bg-white/30 transition-all duration-300">
-                  <div className="text-3xl font-bold mb-2">{worker.experience.split(' ')[0]}</div>
+                  <div className="text-3xl font-bold mb-2">
+                    {worker.experience ? worker.experience.split(' ')[0] : '0'}
+                  </div>
                   <div className="text-sm opacity-80">Years Exp</div>
                 </div>
               </div>
@@ -223,7 +143,7 @@ export default function WorkerDetails() {
                 }}
               >
                 <div className="w-2 h-2 bg-current rounded-full mr-2 animate-pulse" />
-                {worker.availability}
+                {worker.availability || 'Contact for Availability'}
               </div>
             </div>
           </div>
@@ -240,19 +160,21 @@ export default function WorkerDetails() {
             {/* About Section */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h2 className="text-2xl font-bold text-primary mb-4">About {worker.name}</h2>
-              <p className="text-gray-700 mb-6">{worker.bio}</p>
+              <p className="text-gray-700 mb-6">{worker.bio || 'Professional service provider with years of experience.'}</p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold text-primary mb-2">Languages</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {worker.languages.map((lang, index) => (
-                      <span key={index} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-                        {lang}
-                      </span>
-                    ))}
+                {worker.languages && worker.languages.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold text-primary mb-2">Languages</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {worker.languages.map((lang, index) => (
+                        <span key={index} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                          {lang}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
                 
                 <div>
                   <h3 className="font-semibold text-primary mb-2">Location</h3>
@@ -261,147 +183,158 @@ export default function WorkerDetails() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
                     </svg>
-                    {worker.location}
+                    {worker.location || 'Location not specified'}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-6">
-                <h3 className="font-semibold text-primary mb-2">Certifications</h3>
-                <div className="flex flex-wrap gap-2">
-                  {worker.certifications.map((cert, index) => (
-                    <span key={index} className="px-3 py-1 bg-primary/10 text-primary rounded-lg text-sm font-medium">
-                      {cert}
-                    </span>
-                  ))}
+              {worker.phone && (
+                <div className="mt-6">
+                  <h3 className="font-semibold text-primary mb-2">Contact</h3>
+                  <p className="text-gray-700 flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                    </svg>
+                    {worker.phone}
+                  </p>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Services Section */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h2 className="text-2xl font-bold text-primary mb-6">Services Offered</h2>
-              <div className="space-y-4">
-                {worker.services.map((service) => (
-                  <div key={service.id} className="border border-gray-200 rounded-xl p-4 hover:border-primary/30 transition-colors">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="text-lg font-semibold text-primary">{service.name}</h3>
-                        <p className="text-gray-600 text-sm">{service.description}</p>
+            {worker.services && worker.services.length > 0 && (
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <h2 className="text-2xl font-bold text-primary mb-6">Services Offered</h2>
+                <div className="space-y-4">
+                  {worker.services.map((service) => (
+                    <div key={service.id} className="border border-gray-200 rounded-xl p-4 hover:border-primary/30 transition-colors">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="text-lg font-semibold text-green">{service.services}</h3>
+                          <p className="text-gray-600 text-sm">{service.description}</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-primary">₹{service.price}</div>
+                          {service.duration && (
+                            <div className="text-sm text-gray-500">{service.duration}</div>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-primary">₹{service.price}</div>
-                        <div className="text-sm text-gray-500">{service.duration}</div>
-                      </div>
+                      
+                      {service.includes && service.includes.length > 0 && (
+                        <div className="border-t pt-3">
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2">What's included:</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {service.includes.map((item, index) => (
+                              <span key={index} className="px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-xs">
+                                ✓ {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    
-                    <div className="border-t pt-3">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">What's included:</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {service.includes.map((item, index) => (
-                          <span key={index} className="px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-xs">
-                            ✓ {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Work Gallery */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h2 className="text-2xl font-bold text-primary mb-6">Previous Work</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {worker.gallery.map((image, index) => (
-                  <img 
-                    key={index}
-                    src={image}
-                    alt={`Work sample ${index + 1}`}
-                    className="w-full h-40 object-cover rounded-lg shadow-sm hover:shadow-md transition-shadow"
-                  />
-                ))}
+            {worker.gallery && worker.gallery.length > 0 && (
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <h2 className="text-2xl font-bold text-primary mb-6">Previous Work</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {worker.gallery.map((image, index) => (
+                    <img 
+                      key={index}
+                      src={image}
+                      alt={`Work sample ${index + 1}`}
+                      className="w-full h-40 object-cover rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Right Column - Booking & Rating */}
           <div className="space-y-6 sticky top-8">
             
             {/* Booking Card */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-primary mb-6">Book a Service</h2>
-              
-              {/* Service Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Select Service</label>
-                <select
-                  value={selectedService}
-                  onChange={(e) => setSelectedService(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
-                >
-                  <option value="">Choose a service</option>
-                  {worker.services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name} - ₹{service.price}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Date Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Select Date</label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
-                />
-              </div>
-
-              {/* Time Selection */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Select Time</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {timeSlots.map((time) => (
-                    <button
-                      key={time}
-                      onClick={() => setSelectedTime(time)}
-                      className={`p-2 text-xs rounded-lg font-medium transition-colors ${
-                        selectedTime === time
-                          ? "bg-primary text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {time}
-                    </button>
-                  ))}
+            {worker.services && worker.services.length > 0 && (
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <h2 className="text-xl font-bold text-primary mb-6">Book a Service</h2>
+                
+                {/* Service Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Select Service</label>
+                  <select
+                    value={selectedService}
+                    onChange={(e) => setSelectedService(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                  >
+                    <option value="">Choose a service</option>
+                    {worker.services.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name} - ₹{service.price}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
 
-              {/* Price Display */}
-              {selectedService && (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold text-gray-700">Total Amount:</span>
-                    <span className="text-2xl font-bold text-primary">
-                      ₹{worker.services.find(s => s.id === selectedService)?.price}
-                    </span>
+                {/* Date Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Select Date</label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                  />
+                </div>
+
+                {/* Time Selection */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Select Time</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {timeSlots.map((time) => (
+                      <button
+                        key={time}
+                        onClick={() => setSelectedTime(time)}
+                        className={`p-2 text-xs rounded-lg font-medium transition-colors ${
+                          selectedTime === time
+                            ? "bg-primary text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {time}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              )}
 
-              {/* Book Button */}
-              <button
-                onClick={handleBooking}
-                className="w-full bg-yellow text-primary font-semibold py-3 rounded-xl hover:bg-primary/90 transition-colors"
-              >
-                Book Now
-              </button>
-            </div>
+                {/* Price Display */}
+                {selectedService && (
+                  <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-gray-700">Total Amount:</span>
+                      <span className="text-2xl font-bold text-primary">
+                        ₹{worker.services.find(s => s.id === selectedService)?.price}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Book Button */}
+                <button
+                  onClick={handleBooking}
+                  className="w-full bg-yellow text-primary font-semibold py-3 rounded-xl hover:bg-primary/90 transition-colors"
+                >
+                  Book Now
+                </button>
+              </div>
+            )}
 
             {/* Rating & Review Card */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
@@ -452,7 +385,7 @@ export default function WorkerDetails() {
                   <div className="flex gap-2">
                     <button
                       onClick={handleRatingSubmit}
-                      className="flex-1 bg-primary text-white font-semibold py-2 rounded-lg hover:bg-primary/90 transition-colors"
+                      className="flex-1 bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg hover:bg-primary/90 transition-colors"
                     >
                       Submit Rating
                     </button>
@@ -476,4 +409,3 @@ export default function WorkerDetails() {
     </div>
   );
 }
-  

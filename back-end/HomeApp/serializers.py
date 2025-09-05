@@ -56,7 +56,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
         # let DRF handle saving profileimage + other fields
         return super().update(instance, validated_data)
-    
+
 
 
 class UserRegistrationSerializer(serializers.Serializer):

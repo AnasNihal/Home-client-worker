@@ -1,24 +1,7 @@
 // src/pages/UserProfilePage.jsx
 import React, { useEffect, useState, useMemo } from "react";
+import { fetchWithAuth } from "../utlis/fetchWithAuth";
 
-/* ---------------- Reusable fetch wrapper ---------------- */
-async function fetchWithAuth(url, options = {}) {
-  const token = localStorage.getItem("access");
-  if (!token) {
-    window.location.href = "/login";
-    return null;
-  }
-  const headers = { ...(options.headers || {}), Authorization: `Bearer ${token}` };
-  const response = await fetch(url, { ...options, headers });
-  if (response.status === 401) {
-    localStorage.removeItem("access");
-    window.location.href = "/login";
-    return null;
-  }
-  return response;
-}
-
-/* ---------------- Skeleton loader ---------------- */
 function Skeleton() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -75,7 +58,6 @@ export default function UserProfilePage() {
         country: data.country || "",
       });
 
-      // ✅ Prefer absolute URL from backend
       setPreview(data.profileimage_url || data.profileimage || null);
     } catch (err) {
       setError(err.message || "Something went wrong");
@@ -84,7 +66,7 @@ export default function UserProfilePage() {
 
   useEffect(() => {
     fetchProfile();
-  }, []); // only run once
+  }, []);
 
   /* ---------------- Computed values ---------------- */
   const displayName = useMemo(() => {
@@ -114,15 +96,11 @@ export default function UserProfilePage() {
         body: data,
       });
 
-      if (!res.ok) {
-        console.error("Image upload failed");
-        return;
-      }
+      if (!res.ok) return;
 
       const updated = await res.json();
       setProfile(updated);
 
-      // ✅ Refresh preview with backend URL
       const newUrl = updated.profileimage_url || updated.profileimage;
       setPreview(
         newUrl ? `${newUrl}${newUrl.includes("?") ? "&" : "?"}t=${Date.now()}` : null
@@ -140,8 +118,7 @@ export default function UserProfilePage() {
       setForm((f) => ({ ...f, profileimage: file }));
       setPreview(file ? URL.createObjectURL(file) : profile?.profileimage || null);
 
-      // 🔥 Auto-upload image as soon as it's selected
-      if (file) uploadImage(file);
+      if (file) uploadImage(file); // auto-upload
     } else {
       setForm((f) => ({ ...f, [name]: value }));
     }
@@ -170,15 +147,12 @@ export default function UserProfilePage() {
     setError("");
     try {
       const data = new FormData();
-
-      // Append all non-empty fields except profileimage
       Object.entries(form).forEach(([key, value]) => {
         if (key !== "profileimage" && value !== null && value !== "") {
           data.append(key, value);
         }
       });
 
-      // ✅ Only append profileimage if it's a File
       if (form.profileimage instanceof File) {
         data.append("profileimage", form.profileimage);
       }
@@ -188,16 +162,12 @@ export default function UserProfilePage() {
         body: data,
       });
 
-      if (!res || !res.ok) {
-        const text = (res && (await res.text().catch(() => ""))) || "";
-        throw new Error(text || "Update failed");
-      }
+      if (!res || !res.ok) throw new Error("Update failed");
 
       const updated = await res.json();
       setProfile(updated);
       setEditing(false);
 
-      // ✅ Prefer backend URL, add cache-busting
       const newUrl = updated.profileimage_url || updated.profileimage || preview;
       setPreview(
         newUrl ? `${newUrl}${newUrl.includes("?") ? "&" : "?"}t=${Date.now()}` : null
@@ -226,13 +196,9 @@ export default function UserProfilePage() {
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col md:flex-row">
         {/* Left: Profile Image */}
         <div className="md:w-1/3 bg-light_green flex flex-col items-center p-6">
-          <label className="cursor-pointer w-40 h-40 overflow-hidden border-4 rounded-xl border-white shadow-md relative">
+          <label className="cursor-pointer w-40 h-40 overflow-hidden border-4 rounded-lx border-white shadow-md relative">
             {preview ? (
-              <img
-                src={preview}
-                alt="Profile"
-                className="w-full h-full object-cover"
-              />
+              <img src={preview} alt="Profile" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-white text-3xl font-bold bg-emerald-600">
                 {initials}

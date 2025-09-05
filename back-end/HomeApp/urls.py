@@ -3,10 +3,15 @@ from django.contrib import admin
 from django.urls import path,include
 from django.conf import settings
 from django.conf.urls.static import static
+from rest_framework_simplejwt.views import TokenRefreshView
+from .views import login
 
 
 
 urlpatterns = [
+
+    path("login/", login, name="login"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 
     # user urls
     path('auth/login',views.login,name = 'login'),

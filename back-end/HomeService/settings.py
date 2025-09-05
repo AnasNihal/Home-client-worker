@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 import os
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -143,4 +144,12 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ),
 }
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),  # instead of 5 mins
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),     # keep for 7 days
+    "ROTATE_REFRESH_TOKENS": True,                   # optional: issue new refresh on login
+    "BLACKLIST_AFTER_ROTATION": True,                # optional: invalidate old refresh
+}
+
 AUTH_USER_MODEL = 'HomeApp.CustomerUser'
