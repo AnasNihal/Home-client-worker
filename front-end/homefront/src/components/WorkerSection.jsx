@@ -5,51 +5,32 @@ import { Link } from "react-router-dom";
 export default function WorkersSection() {
   const [searchTerm, setSearchTerm] = useState("");
   const [workers, setWorkers] = useState([]);
+  const [professions, setProfessions] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState("rating");
 
-  // Fetch workers from backend and normalize so UI fields exist
+  // Fetch workers
   useEffect(() => {
     let cancelled = false;
-
     async function fetchWorkers() {
       try {
-        const res = await fetch("http://127.0.0.1:8000/worker/worker_list"); // <-- update if your endpoint differs
+        const res = await fetch("http://127.0.0.1:8000/worker/worker_list");
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
-
-        // Normalize backend response into the exact fields your UI expects
         const normalized = (Array.isArray(data) ? data : []).map((w, idx) => {
-          // derive id
-          const id =
-            w.id ??
-            w.pk ??
-            w.username ??
-            (w.name ? `worker-${w.name.toLowerCase().replace(/\s+/g, "-")}` : `worker-${idx}`);
-
-          // image may be a relative path from Django; try to produce a usable URL
+          const id = w.id ?? w.pk ?? w.username ?? (w.name ? `worker-${w.name.toLowerCase().replace(/\s+/g, "-")}` : `worker-${idx}`);
           let image = w.image || w.image_url || w.profile_image || "";
-          if (image && typeof image === "string" && !image.startsWith("http")) {
-            // adjust base if your media served at different host
-            image = `http://127.0.0.1:8000${image.startsWith("/") ? "" : "/"}${image}`;
-          }
+          if (image && typeof image === "string" && !image.startsWith("http")) image = `http://127.0.0.1:8000${image.startsWith("/") ? "" : "/"}${image}`;
           if (!image) image = "https://via.placeholder.com/400";
 
-          // services -> skills (UI expects skills array). Keep original services separately in backend.
-         // services -> skills
           const servicesArr = Array.isArray(w.services) ? w.services : [];
           const skills = servicesArr.map((s) => s.services || "Unknown");
 
-
-          // category: keep dummy derived from profession if backend doesn't provide it
-          const category =
-            w.category ||
-            (w.profession ? w.profession.toLowerCase().replace(/\s+/g, "-") : "general");
+          const category = w.profession ? w.profession.toLowerCase().replace(/\s+/g, "-") : "general";
 
           const experience = typeof w.experience === "string" ? w.experience : String(w.experience ?? "");
-         const rating = w.ratings?.average_rating ?? null;
-         const reviews = w.ratings?.total_ratings ?? 0;
-
+          const rating = w.ratings?.average_rating ?? null;
+          const reviews = w.ratings?.total_ratings ?? 0;
           const location = w.location ?? "";
           const availability = w.availability ?? (Math.random() > 0.5 ? "Available Today" : "Available Tomorrow");
 
@@ -64,74 +45,45 @@ export default function WorkersSection() {
             reviews,
             location,
             availability,
-            skills, // UI expects skills[]
-            services: servicesArr, // raw backend services (kept if you need later)
+            skills,
+            services: servicesArr,
             bio: w.bio ?? "",
             verified: !!w.verified,
           };
         });
-
         if (!cancelled) setWorkers(normalized);
       } catch (err) {
         console.error("Error fetching workers:", err);
-        if (!cancelled) setWorkers([]); // safe fallback
+        if (!cancelled) setWorkers([]);
       }
     }
-
     fetchWorkers();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; };
   }, []);
 
-  // compute service categories (icons you provided, counts based on current workers)
-  const serviceCategories = [
-    {
-      id: "all",
-      name: "All Services",
-      icon: "https://img.icons8.com/ios-filled/50/1E5F4B/menu.png",
-      count: workers.length,
-    },
-    {
-      id: "electrical-repairs",
-      name: "Electrical",
-      icon: "https://img.icons8.com/ios-filled/50/1E5F4B/electrical.png",
-      count: workers.filter((w) => w.category === "electrical-repairs").length,
-    },
-    {
-      id: "plumbing",
-      name: "Plumbing",
-      icon: "https://img.icons8.com/ios-filled/50/1E5F4B/plumbing.png",
-      count: workers.filter((w) => w.category === "plumbing").length,
-    },
-    {
-      id: "carpenter",
-      name: "Carpentry",
-      icon: "https://img.icons8.com/ios-filled/50/1E5F4B/carpenter.png",
-      count: workers.filter((w) => w.category === "carpenter").length,
-    },
-    {
-      id: "deep-cleaning",
-      name: "Deep Cleaning",
-      icon: "https://img.icons8.com/ios-filled/50/1E5F4B/clean.png",
-      count: workers.filter((w) => w.category === "deep-cleaning").length,
-    },
-    {
-      id: "residential-cleaning",
-      name: "House Cleaning",
-      icon: "https://img.icons8.com/ios-filled/50/1E5F4B/clean.png",
-      count: workers.filter((w) => w.category === "residential-cleaning").length,
-    },
-    {
-      id: "pest-control",
-      name: "Pest Control",
-      icon: "https://img.icons8.com/ios-filled/50/1E5F4B/bug.png",
-      count: workers.filter((w) => w.category === "pest-control").length,
-    },
-  ];
+  // Fetch professions dynamically
+  useEffect(() => {
+    async function fetchProfessions() {
+      try {
+        const res = await fetch("http://127.0.0.1:8000/worker/profession_list");
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const data = await res.json();
+        setProfessions([{ id: "all", name: "All Services", slug: "all" }, ...data]);
+      } catch (err) {
+        console.error("Error fetching professions:", err);
+        setProfessions([{ id: "all", name: "All Services", slug: "all" }]);
+      }
+    }
+    fetchProfessions();
+  }, []);
 
-  // Filter workers based on search and category
+  // Add counts dynamically based on workers' professions
+  const professionsWithCount = professions.map((prof) => ({
+    ...prof,
+    count: prof.slug === "all" ? workers.length : workers.filter((w) => w.category === prof.slug).length,
+  }));
+
+  // Filter workers based on search and selected profession
   const filteredWorkers = workers.filter((worker) => {
     const matchesSearch =
       (worker.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -140,95 +92,76 @@ export default function WorkersSection() {
     return matchesSearch && matchesCategory;
   });
 
-  // Sort workers copy
+  // Sort workers
   const sortedWorkers = [...filteredWorkers].sort((a, b) => {
     switch (sortBy) {
-      case "rating":
-        // handle null ratings safely
-        return (b.rating ?? 0) - (a.rating ?? 0);
-      case "experience":
-        // try to extract numeric part from experience strings like "8 years"
-        return (parseInt(b.experience, 10) || 0) - (parseInt(a.experience, 10) || 0);
-      default:
-        return 0;
+      case "rating": return (b.rating ?? 0) - (a.rating ?? 0);
+      case "experience": return (parseInt(b.experience, 10) || 0) - (parseInt(a.experience, 10) || 0);
+      default: return 0;
     }
   });
 
   return (
     <section className="bg-light_green min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header with Search */}
-        <div className="mb-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-primary mb-2">
-              Find Professional Workers
-            </h1>
-            <p className="text-gray-600 text-lg">Browse {workers.length}+ verified professionals in your area</p>
-          </div>
-
-          {/* Search Bar */}
-          <div className="relative max-w-2xl mx-auto mb-6">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by name or profession..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-6 py-4 pr-12 text-lg border border-gray-300 rounded-2xl shadow-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-              />
-              <svg className="absolute right-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
+        {/* Header */}
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl md:text-4xl font-bold text-primary mb-2">Find Professional Workers</h1>
+          <p className="text-gray-600 text-lg">Browse {workers.length}+ verified professionals in your area</p>
+          <div className="relative max-w-2xl mx-auto mt-4 mb-6">
+            <input
+              type="text"
+              placeholder="Search by name or profession..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-6 py-4 pr-12 text-lg border border-gray-300 rounded-2xl shadow-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+            />
           </div>
 
           {/* Quick Filters */}
           <div className="flex flex-wrap justify-center gap-3 mb-6">
-            {serviceCategories.slice(0, 5).map((category) => (
+            {professionsWithCount.slice(0, 5).map((prof) => (
               <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
+                key={prof.slug}
+                onClick={() => setSelectedCategory(prof.slug)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
-                  selectedCategory === category.id ? "bg-white text-primary shadow-md" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                  selectedCategory === prof.slug ? "bg-white text-primary shadow-md" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
                 }`}
               >
-                <img src={category.icon} alt={category.name} className="w-4 h-4" />
-                <span className="font-medium">{category.name}</span>
-                <span className="text-xs bg-black/10 px-2 py-0.5 rounded-full">{category.count}</span>
+                <img src={prof.icon || "https://img.icons8.com/ios-filled/50/1E5F4B/menu.png"} alt={prof.name} className="w-4 h-4" />
+                <span className="font-medium">{prof.name}</span>
+                <span className="text-xs bg-black/10 px-2 py-0.5 rounded-full">{prof.count}</span>
               </button>
             ))}
           </div>
         </div>
 
         <div className="flex gap-8">
-          {/* Left Sidebar Filters */}
+          {/* Sidebar Filters */}
           <div className="hidden lg:block w-64 flex-shrink-0">
             <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-8">
               <h3 className="text-lg font-semibold text-primary mb-4">Filters</h3>
-
-              {/* Category Filter */}
               <div className="mb-6">
                 <h4 className="font-medium text-gray-900 mb-3">Service Category</h4>
                 <div className="space-y-2">
-                  {serviceCategories.map((category) => (
+                  {professionsWithCount.map((prof) => (
                     <button
-                      key={category.id}
-                      onClick={() => setSelectedCategory(category.id)}
+                      key={prof.slug}
+                      onClick={() => setSelectedCategory(prof.slug)}
                       className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${
-                        selectedCategory === category.id ? "bg-primary font-bold" : "hover:bg-gray-50 text-gray-700"
+                        selectedCategory === prof.slug ? "bg-primary font-bold" : "hover:bg-gray-50 text-gray-700"
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <img src={category.icon} alt={category.name} className="w-5 h-5" />
-                        <span>{category.name}</span>
+                        <img src={prof.icon || "https://img.icons8.com/ios-filled/50/1E5F4B/menu.png"} alt={prof.name} className="w-5 h-5" />
+                        <span>{prof.name}</span>
                       </div>
-                      <span className="text-sm bg-black/10 px-2 py-1 rounded-full">{category.count}</span>
+                      <span className="text-sm bg-black/10 px-2 py-1 rounded-full">{prof.count}</span>
                     </button>
                   ))}
-                </div>
+                </div>  
               </div>
 
-              {/* Sort Options */}
               <div className="mb-6">
                 <h4 className="font-medium text-gray-900 mb-3">Sort By</h4>
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
@@ -236,38 +169,14 @@ export default function WorkersSection() {
                   <option value="experience">Most Experienced</option>
                 </select>
               </div>
-
-              {/* Availability Filter */}
-              <div className="mb-6">
-                <h4 className="font-medium text-gray-900 mb-3">Availability</h4>
-                <div className="space-y-2">
-                  <label className="flex items-center"><input type="checkbox" className="rounded border-gray-300 text-primary focus:ring-primary" /><span className="ml-2 text-gray-700">Available Today</span></label>
-                  <label className="flex items-center"><input type="checkbox" className="rounded border-gray-300 text-primary focus:ring-primary" /><span className="ml-2 text-gray-700">Available This Week</span></label>
-                  <label className="flex items-center"><input type="checkbox" className="rounded border-gray-300 text-primary focus:ring-primary" /><span className="ml-2 text-gray-700">Verified Only</span></label>
-                </div>
-              </div>
             </div>
           </div>
 
           {/* Workers Grid */}
-          <div className="flex-1">
-            <div className="mb-4 flex justify-between items-center">
-              <p className="text-gray-600">Showing {sortedWorkers.length} of {workers.length} workers</p>
-              <div className="lg:hidden">
-                <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" /></svg>
-                  Filters
-                </button>
-              </div>
-            </div>
-
-            {/* Workers Cards */}
-            <div className="space-y-4">
-              {sortedWorkers.map((worker) => (
-                <WorkerCard key={worker.id} {...worker} />
-              ))}
-            </div>
-
+          <div className="flex-1 space-y-4">
+            {sortedWorkers.map((worker) => (
+              <WorkerCard key={worker.id} {...worker} />
+            ))}
             {sortedWorkers.length === 0 && (
               <div className="text-center py-12">
                 <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -282,7 +191,7 @@ export default function WorkersSection() {
   );
 }
 
-// WorkerCard kept inline (UI preserved). No hourlyRate, skills mapped from backend services.
+// WorkerCard component kept inline
 function WorkerCard({ id, image, name, profession, experience, rating, reviews, location, availability, skills, verified }) {
   const isAvailableToday = availability === "Available Today";
   const skillsList = Array.isArray(skills) ? skills : [];
@@ -322,9 +231,7 @@ function WorkerCard({ id, image, name, profession, experience, rating, reviews, 
 
           <div className="flex flex-wrap gap-2 mb-3 sm:mb-4">
             {skillsList.slice(0, 3).map((skill, index) => (
-              <span key={index} className="px-3 py-1 sm:px-4 sm:py-2 bg-gray-100 group-hover:bg-primary/10 text-gray-700 text-xs sm:text-sm rounded-full font-medium transition-colors">
-                {skill}
-              </span>
+              <span key={index} className="px-3 py-1 sm:px-4 sm:py-2 bg-gray-100 group-hover:bg-primary/10 text-gray-700 text-xs sm:text-sm rounded-full font-medium transition-colors">{skill}</span>
             ))}
             {skillsList.length > 3 && <span className="px-3 py-1 sm:px-4 sm:py-2 bg-gray-100 text-gray-500 text-xs sm:text-sm rounded-full">+{skillsList.length - 3}</span>}
           </div>
@@ -347,4 +254,4 @@ function WorkerCard({ id, image, name, profession, experience, rating, reviews, 
     </Link>
   );
 }
-
+  

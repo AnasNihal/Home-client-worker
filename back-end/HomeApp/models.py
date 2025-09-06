@@ -3,6 +3,8 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
 from django.core.validators import RegexValidator
 from django.conf import settings
+from django.utils.text import slugify
+
 
 
 class CustomerUser(AbstractUser):
@@ -39,6 +41,12 @@ class UserProfile(models.Model):
 class Profession(models.Model):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(unique=True)
+    
+
+    def save(self, *args, **kwargs):
+        if not self.slug:  # only set slug if empty
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import WorkerService,Worker,UserProfile,WorkerRating
+from .models import Profession, WorkerService,Worker,UserProfile,WorkerRating
 from django.db.models import Avg
 
 
@@ -88,7 +88,11 @@ class WorkerRegistrationSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     # initial worker profile fields:
     phone = serializers.CharField()
-    profession = serializers.CharField(required=False, allow_blank=True)
+    profession_id = serializers.PrimaryKeyRelatedField(
+        queryset=Profession.objects.all(),  # ✅ dropdown options from DB
+        write_only=True,
+        source="profession"                 # ✅ will be saved into Worker.profession
+    )
     experience = serializers.CharField(required=False, allow_blank=True)
     location = serializers.CharField(required=False, allow_blank=True)
     bio = serializers.CharField(required=False, allow_blank=True)
@@ -127,7 +131,11 @@ class WorkerRatingSummarySerializer(serializers.ModelSerializer):
 
     def get_total_ratings(self, obj):
         return WorkerRating.objects.filter(worker=obj).count()
-    
+
+class ProfessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profession
+        fields = ["id", "name", "slug"]
 
 class WorkerSerializer(serializers.ModelSerializer):
     username = serializers.CharField(write_only=True)
@@ -135,11 +143,16 @@ class WorkerSerializer(serializers.ModelSerializer):
     services = WorkerServiceSerializer(many=True, read_only=True)
     ratings = WorkerRatingSummarySerializer(source='*', read_only=True)# 🔹 include nested rating summary
 
+    profession = ProfessionSerializer(read_only=True)
+    profession_id = serializers.PrimaryKeyRelatedField(
+        queryset=Profession.objects.all(), write_only=True, source="profession"
+    )
+
     class Meta:
         model = Worker
         fields = [
             'id', 'image', 'username', 'email', 'name', 'phone',
-            'profession', 'experience', 'location', 'bio',
+            'profession', 'profession_id', 'experience', 'location', 'bio',
             'services', 'ratings'  # 🔹 include ratings here
         ]
         extra_kwargs = {

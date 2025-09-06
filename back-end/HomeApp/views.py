@@ -7,6 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Avg
 from .serializers  import (
+    ProfessionSerializer,
     UserRegistrationSerializer,
     UserProfileSerializer,
     WorkerRegistrationSerializer,
@@ -16,7 +17,7 @@ from .serializers  import (
     )
 from rest_framework import status
 from django.contrib.auth import authenticate
-from .models import UserProfile, Worker, WorkerService,WorkerRating 
+from .models import Profession, UserProfile, Worker, WorkerService,WorkerRating 
 
 
 
@@ -197,3 +198,12 @@ def rate_worker(request, worker_id):
         "total_ratings": total
     }, status=status.HTTP_201_CREATED)
     
+
+@api_view(["GET"])
+def profession_list(request):
+    """
+    Return a list of all professions
+    """
+    professions = Profession.objects.all()
+    serializer = ProfessionSerializer(professions, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
