@@ -68,7 +68,7 @@ export default function Login() {
 
         // ✅ Redirect based on role
         if (data.role === "worker") {
-          navigate("/worker-dashboard");
+          navigate("/worker/dashboard");
         } else {
           navigate("/profile/me");
         }

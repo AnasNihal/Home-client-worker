@@ -97,23 +97,41 @@ class WorkerRating(models.Model):
     class Meta:
         unique_together = ("worker", "user") 
 
+# models.py
+class Booking(models.Model):
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("confirmed", "Confirmed"),
+        ("accepted", "Accepted"),
+        ("declined", "Declined"),
+        ("completed", "Completed"),
+        ("canceled", "Canceled"),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bookings"
+    )
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.CASCADE,
+        related_name="bookings"
+    )
+    service = models.ForeignKey(
+        WorkerService,
+        on_delete=models.CASCADE,
+        related_name="bookings"
+    )
+    date = models.DateField()
+    time = models.TimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Booking {self.id} - {self.user.username} → {self.worker.name}"
 
 
 
-# class Booking(models.Model):
-#     STATUS_CHOICE = (
-#         ('Pending', 'Pending'),
-#         ('Assigned', 'Assigned'),
-#         ('Completed', 'Completed'),
-#         ('Canceled', 'Canceled'),
-#     )
 
-#     customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="bookings", null=True, blank=True)
-#     service = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True)
-#     worker = models.ForeignKey(Worker, on_delete=models.SET_NULL, null=True, blank=True)
-#     date = models.DateField()
-#     status = models.CharField(max_length=10, choices=STATUS_CHOICE, default='Pending')
-#     notes = models.TextField(blank=True)
-
-#     def __str__(self):
-#         return f"{self.customer.username} - {self.service.service if self.service else 'No Service'}"

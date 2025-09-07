@@ -1,49 +1,21 @@
 // src/pages/UserProfilePage.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import { fetchWithAuth } from "../utlis/fetchWithAuth";
+import { PencilIcon, UserIcon, MapPinIcon, PhoneIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 
-function Skeleton() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="flex gap-6 max-w-4xl w-full p-6 bg-white rounded-2xl shadow animate-pulse">
-        <div className="w-32 h-32 rounded-full bg-gray-200" />
-        <div className="flex-1 space-y-4 py-2">
-          <div className="h-6 bg-gray-200 rounded w-1/2" />
-          <div className="h-4 bg-gray-200 rounded w-3/4" />
-          <div className="h-4 bg-gray-200 rounded w-1/4" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- Main Page ---------------- */
 export default function UserProfilePage() {
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    first_name: "",
-    last_name: "",
-    email: "",
-    phone: "",
-    bio: "",
-    profileimage: null,
-    address: "",
-    city: "",
-    postal_code: "",
-    country: "",
-  });
+  const [form, setForm] = useState({});
   const [preview, setPreview] = useState(null);
 
-  /* ---------------- Fetch profile ---------------- */
   const fetchProfile = async () => {
     try {
       const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile");
       if (!res || !res.ok) throw new Error("Failed to fetch profile");
       const data = await res.json();
-
       setProfile(data);
       setForm({
         first_name: data.first_name || "",
@@ -51,74 +23,42 @@ export default function UserProfilePage() {
         email: data.email || "",
         phone: data.phone || "",
         bio: data.bio || "",
-        profileimage: null,
         address: data.address || "",
         city: data.city || "",
         postal_code: data.postal_code || "",
         country: data.country || "",
+        profileimage: null,
       });
-
       setPreview(data.profileimage_url || data.profileimage || null);
     } catch (err) {
       setError(err.message || "Something went wrong");
     }
   };
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
+  useEffect(() => { fetchProfile(); }, []);
 
-  /* ---------------- Computed values ---------------- */
   const displayName = useMemo(() => {
-    if (!profile) return "Unknown User";
+    if (!profile) return "User";
     return (
       `${profile.first_name || ""} ${profile.last_name || ""}`.trim() ||
       profile.username ||
-      "Unknown User"
+      "User"
     );
   }, [profile]);
 
   const initials = useMemo(() => {
-    if (!profile) return "US";
+    if (!profile) return "U";
     const first = profile.first_name?.[0] || profile.username?.[0] || "U";
-    const last = profile.last_name?.[0] || profile.username?.[1] || "S";
+    const last = profile.last_name?.[0] || profile.username?.[1] || "";
     return (first + last).toUpperCase();
   }, [profile]);
 
-  /* ---------------- Image Upload Helper ---------------- */
-  const uploadImage = async (file) => {
-    const data = new FormData();
-    data.append("profileimage", file);
-
-    try {
-      const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile", {
-        method: "PUT",
-        body: data,
-      });
-
-      if (!res.ok) return;
-
-      const updated = await res.json();
-      setProfile(updated);
-
-      const newUrl = updated.profileimage_url || updated.profileimage;
-      setPreview(
-        newUrl ? `${newUrl}${newUrl.includes("?") ? "&" : "?"}t=${Date.now()}` : null
-      );
-    } catch (err) {
-      console.error("Error uploading image:", err);
-    }
-  };
-
-  /* ---------------- Handlers ---------------- */
   const onChange = (e) => {
     const { name, value, files } = e.target;
     if (name === "profileimage") {
       const file = files?.[0] || null;
       setForm((f) => ({ ...f, profileimage: file }));
       setPreview(file ? URL.createObjectURL(file) : profile?.profileimage || null);
-
-      if (file) uploadImage(file); // auto-upload
     } else {
       setForm((f) => ({ ...f, [name]: value }));
     }
@@ -132,11 +72,11 @@ export default function UserProfilePage() {
       email: profile.email || "",
       phone: profile.phone || "",
       bio: profile.bio || "",
-      profileimage: null,
       address: profile.address || "",
       city: profile.city || "",
       postal_code: profile.postal_code || "",
       country: profile.country || "",
+      profileimage: null,
     });
     setPreview(profile.profileimage || null);
     setEditing(false);
@@ -152,26 +92,19 @@ export default function UserProfilePage() {
           data.append(key, value);
         }
       });
-
       if (form.profileimage instanceof File) {
         data.append("profileimage", form.profileimage);
       }
-
       const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile", {
         method: "PUT",
         body: data,
       });
-
       if (!res || !res.ok) throw new Error("Update failed");
-
       const updated = await res.json();
       setProfile(updated);
       setEditing(false);
-
       const newUrl = updated.profileimage_url || updated.profileimage || preview;
-      setPreview(
-        newUrl ? `${newUrl}${newUrl.includes("?") ? "&" : "?"}t=${Date.now()}` : null
-      );
+      setPreview(newUrl ? `${newUrl}?t=${Date.now()}` : null);
     } catch (err) {
       setError(err.message || "Failed to save changes");
     } finally {
@@ -179,208 +112,160 @@ export default function UserProfilePage() {
     }
   };
 
-  /* ---------------- UI ---------------- */
   if (error)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md rounded-xl border border-amber-300 bg-white shadow-sm px-4 py-3 text-gray-800">
-          {error}
+      <div className="min-h-screen flex items-center justify-center bg-light_green p-4">
+        <div className="bg-white/30 rounded-2xl p-8 text-center text-green">{error}</div>
+      </div>
+    );
+
+  if (!profile)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-light_green">
+        <div className="bg-white/30 rounded-2xl p-8 text-center">
+          <p className="text-green">Loading profile...</p>
         </div>
       </div>
     );
 
-  if (!profile) return <Skeleton />;
-
   return (
-    <div className="min-h-screen bg-green py-12 pt-24">
-      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col md:flex-row">
-        {/* Left: Profile Image */}
-        <div className="md:w-1/3 bg-light_green flex flex-col items-center p-6">
-          <label className="cursor-pointer w-40 h-40 overflow-hidden border-4 rounded-lx border-white shadow-md relative">
-            {preview ? (
-              <img src={preview} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-white text-3xl font-bold bg-emerald-600">
-                {initials}
-              </div>
-            )}
-            <input
-              type="file"
-              name="profileimage"
-              accept="image/*"
-              onChange={onChange}
-              className="hidden"
-            />
-          </label>
+    <div className="min-h-screen bg-light_green p-4 sm:p-6 relative top-24">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Profile Card */}
+        <div className="bg-green/20 rounded-3xl p-6 sm:p-8 shadow-xl relative">
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            {/* Profile Image */}
+            <div className="relative">
+              <label className="cursor-pointer">
+                {preview ? (
+                  <img
+                    src={preview}
+                    alt="Profile"
+                    className="w-32 h-32 rounded-full object-cover shadow-lg"
+                  />
+                ) : (
+                  <div className="w-32 h-32 rounded-full bg-green flex items-center justify-center text-white font-bold text-4xl shadow-lg">
+                    {initials}
+                  </div>
+                )}
+                <input
+                  type="file"
+                  name="profileimage"
+                  accept="image/*"
+                  onChange={onChange}
+                  className="hidden"
+                />
+              </label>
+            </div>
 
-          {!editing && (
-            <h2 className="mt-4 text-xl font-semibold text-white">{displayName}</h2>
-          )}
+            {/* Profile Info */}
+            <div className="flex-1 text-center sm:text-left">
+              <h1 className="text-3xl sm:text-4xl font-bold text-green mb-2">{displayName}</h1>
+              <p className="text-green font-medium">{profile.email}</p>
+              {/* <p className="text-green mt-2">{profile.phone || "No phone added"}</p> */}
+            </div>
+          </div>
+
+          {/* Edit Button */}
+          <button
+            onClick={() => setEditing(true)}
+            className="absolute top-4 right-4 flex items-center gap-1 bg-yellow px-3 py-1 rounded-xl text-green hover:bg-yellow/90"
+          >
+            <PencilIcon className="h-4 w-4" /> Edit
+          </button>
         </div>
 
-        {/* Right: Details */}
-        <div className="md:w-2/3 p-6 md:p-10 bg-light_green flex flex-col justify-between">
+        {/* Details Section */}
+        <div className="bg-green/20 rounded-3xl p-6 sm:p-8 shadow-xl relative">
+          <h2 className="text-2xl font-bold text-green mb-4">Profile Details</h2>
           {!editing ? (
-            <ProfileView profile={profile} />
+            <div className="space-y-3">
+              <DetailRow icon={<UserIcon className="h-5 w-5" />} label="Name" value={displayName} />
+              <DetailRow icon={<EnvelopeIcon className="h-5 w-5" />} label="Email" value={profile.email} />
+              <DetailRow icon={<PhoneIcon className="h-5 w-5" />} label="Phone" value={profile.phone} />
+              <DetailRow icon={<MapPinIcon className="h-5 w-5" />} label="Address" value={`${profile.address || ""}, ${profile.city || ""}, ${profile.country || ""}`} />
+              <p className="text-green/70 mt-2">{profile.bio || "No bio added"}</p>
+            </div>
           ) : (
-            <ProfileEdit
+            <ProfileEditForm
               form={form}
-              preview={preview}
               onChange={onChange}
               onCancel={onCancel}
               onSave={onSave}
               saving={saving}
             />
           )}
-
-          {!editing && (
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={fetchProfile}
-                className="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={() => setEditing(true)}
-                className="px-4 py-2 bg-yellow text-primary rounded-lg shadow-sm hover:brightness-95 transition-colors"
-              >
-                Edit Profile
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>
   );
 }
 
-/* ---------------- Sub-components ---------------- */
-function ProfileView({ profile }) {
-  return (
-    <div className="space-y-6">
-      <Section title="Personal Info">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InfoBlock label="First Name" value={profile.first_name} />
-          <InfoBlock label="Last Name" value={profile.last_name} />
-          <InfoBlock label="Email" value={profile.email} />
-          <InfoBlock label="Phone" value={profile.phone} />
-        </div>
-      </Section>
-
-      <Section title="Address">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InfoBlock label="Address" value={profile.address} />
-          <InfoBlock label="City" value={profile.city} />
-          <InfoBlock label="Postal Code" value={profile.postal_code} />
-          <InfoBlock label="Country" value={profile.country} />
-        </div>
-      </Section>
-
-      <Section title="About">
-        <p className="text-gray-700">{profile.bio || "—"}</p>
-      </Section>
+/* ---------------- Helper Components ---------------- */
+const DetailRow = ({ icon, label, value }) => (
+  <div className="flex items-center gap-3 text-green">
+    <div className="bg-green/10 p-2 rounded-lg">{icon}</div>
+    <div>
+      <p className="text-green/70 text-sm">{label}</p>
+      <p className="font-medium">{value || "N/A"}</p>
     </div>
-  );
-}
+  </div>
+);
 
-function ProfileEdit({ form, onChange, onCancel, onSave, saving }) {
-  return (
-    <form
-      className="space-y-6"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave();
-      }}
-    >
-      <Section title="Personal Info">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <TextField label="First Name" name="first_name" value={form.first_name} onChange={onChange} />
-          <TextField label="Last Name" name="last_name" value={form.last_name} onChange={onChange} />
-          <TextField label="Email" type="email" name="email" value={form.email} onChange={onChange} />
-          <TextField label="Phone" name="phone" value={form.phone} onChange={onChange} />
-        </div>
-      </Section>
-
-      <Section title="Address">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <TextField label="Address" name="address" value={form.address} onChange={onChange} />
-          <TextField label="City" name="city" value={form.city} onChange={onChange} />
-          <TextField label="Postal Code" name="postal_code" value={form.postal_code} onChange={onChange} />
-          <TextField label="Country" name="country" value={form.country} onChange={onChange} />
-        </div>
-      </Section>
-
-      <Section title="About">
-        <TextArea label="Bio" name="bio" value={form.bio} onChange={onChange} />
-      </Section>
-
-      <div className="flex justify-end gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-60"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="px-4 py-2 bg-emerald-600 text-white rounded-lg shadow-sm hover:brightness-110 transition-colors disabled:opacity-60"
-        >
-          {saving ? "Saving..." : "Save"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-/* ---------------- Helper components ---------------- */
-function Section({ title, children }) {
-  return (
-    <div className="mb-6">
-      <h3 className="text-gray-900 font-semibold mb-2">{title}</h3>
-      <div className="p-4 bg-gray-50 border rounded-lg">{children}</div>
+const ProfileEditForm = ({ form, onChange, onCancel, onSave, saving }) => (
+  <form
+    className="space-y-4"
+    onSubmit={(e) => {
+      e.preventDefault();
+      onSave();
+    }}
+  >
+    <input
+      type="text"
+      name="first_name"
+      value={form.first_name}
+      onChange={onChange}
+      placeholder="First Name"
+      className="w-full px-4 py-2 border rounded-lg"
+    />
+    <input
+      type="text"
+      name="last_name"
+      value={form.last_name}
+      onChange={onChange}
+      placeholder="Last Name"
+      className="w-full px-4 py-2 border rounded-lg"
+    />
+    <input
+      type="email"
+      name="email"
+      value={form.email}
+      onChange={onChange}
+      placeholder="Email"
+      className="w-full px-4 py-2 border rounded-lg"
+    />
+    <input
+      type="text"
+      name="phone"
+      value={form.phone}
+      onChange={onChange}
+      placeholder="Phone"
+      className="w-full px-4 py-2 border rounded-lg"
+    />
+    <textarea
+      name="bio"
+      value={form.bio}
+      onChange={onChange}
+      placeholder="Bio"
+      className="w-full px-4 py-2 border rounded-lg"
+    />
+    <div className="flex justify-end gap-3">
+      <button type="button" onClick={onCancel} className="px-4 py-2 bg-green/20 rounded-lg">
+        Cancel
+      </button>
+      <button type="submit" disabled={saving} className="px-4 py-2 bg-yellow text-green rounded-lg">
+        {saving ? "Saving..." : "Save"}
+      </button>
     </div>
-  );
-}
-
-function InfoBlock({ label, value }) {
-  return (
-    <div className="flex flex-col">
-      <span className="text-xs uppercase text-gray-500">{label}</span>
-      <span className="text-gray-900 font-medium">{value || "—"}</span>
-    </div>
-  );
-}
-
-function TextField({ label, name, value, onChange, type = "text" }) {
-  return (
-    <label className="block">
-      <span className="text-sm text-gray-600">{label}</span>
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        className="mt-1 w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
-      />
-    </label>
-  );
-}
-
-function TextArea({ label, name, value, onChange }) {
-  return (
-    <label className="block">
-      <span className="text-sm text-gray-600">{label}</span>
-      <textarea
-        name={name}
-        value={value}
-        onChange={onChange}
-        rows={3}
-        className="mt-1 w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 resize-none"
-      />
-    </label>
-  );
-}
+  </form>
+);

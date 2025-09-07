@@ -57,20 +57,28 @@ def user_register(request):
 @parser_classes([MultiPartParser, FormParser]) 
 def user_profile(request):
     if request.user.is_anonymous:
-      return Response({"detail": "Authentication required"}, status=401)
+        return Response({"detail": "Authentication required"}, status=401)
 
-    profile , create = UserProfile.objects.get_or_create(user = request.user)
+    # 🚫 Prevent workers from auto-creating a UserProfile
+    if request.user.role.lower() != "user":
+        return Response({"detail": "Only normal users can access profile"}, status=403)
+
+    try:
+        profile = UserProfile.objects.get(user=request.user)
+    except UserProfile.DoesNotExist:
+        return Response({"detail": "Profile not found"}, status=404)
+
     if request.method == 'GET':
-        serializer = UserProfileSerializer(profile,context={"request": request})
+        serializer = UserProfileSerializer(profile, context={"request": request})
         return Response(serializer.data)
 
     elif request.method == 'PUT':
-        serializer = UserProfileSerializer(profile,data=request.data,partial = True,context={'request': request}, )
+        serializer = UserProfileSerializer(profile, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
             instance = serializer.save()
             return Response(serializer.data)
-        print("Serializer errors:", serializer.errors)
-        return Response(serializer.errors,status=400)
+        return Response(serializer.errors, status=400)
+
     
 # Worker Setup --- >>
 
@@ -117,33 +125,25 @@ def add_service(request):
     return Response(serializer.errors, status=400)
 
 
-@api_view(['PUT', 'PATCH'])
+@api_view(['PUT', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def edit_service(request, service_id):
     if request.user.role.lower() != "worker":
-        return Response({'detail': 'Only workers can edit services'}, status=403)
+        return Response({'detail': 'Only workers can modify services'}, status=403)
 
     worker = get_object_or_404(Worker, user=request.user)
     service = get_object_or_404(WorkerService, id=service_id, worker=worker)
 
-    serializer = WorkerServiceSerializer(service, data=request.data, partial=(request.method == 'PATCH'))
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data)
-    return Response(serializer.errors, status=400)
-
-        
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def delete_service(request, service_id):
-    if request.user.role.lower() != "worker":
-        return Response({'detail': 'Only workers can delete services'}, status=403)
-
-    worker = get_object_or_404(Worker, user=request.user)
-    service = get_object_or_404(WorkerService, id=service_id, worker=worker)
-
-    service.delete()
-    return Response(status=204)
+    if request.method in ['PUT', 'PATCH']:
+        serializer = WorkerServiceSerializer(service, data=request.data, partial=(request.method=='PATCH'))
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
+    
+    elif request.method == 'DELETE':
+        service.delete()
+        return Response(status=204)
 
 # ✅ List all workers with ratings included
 @api_view(['GET'])

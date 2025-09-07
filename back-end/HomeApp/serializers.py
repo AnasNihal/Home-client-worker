@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Profession, WorkerService,Worker,UserProfile,WorkerRating
+from .models import Profession, WorkerService,Worker,UserProfile,WorkerRating,Booking
 from django.db.models import Avg
 
 
@@ -143,9 +143,14 @@ class WorkerSerializer(serializers.ModelSerializer):
     services = WorkerServiceSerializer(many=True, read_only=True)
     ratings = WorkerRatingSummarySerializer(source='*', read_only=True)# 🔹 include nested rating summary
 
+    # 🔹 Nested profession serializer (read-only)
     profession = ProfessionSerializer(read_only=True)
+
+    # 🔹 For updates (write-only)
     profession_id = serializers.PrimaryKeyRelatedField(
-        queryset=Profession.objects.all(), write_only=True, source="profession"
+        queryset=Profession.objects.all(),
+        write_only=True,
+        source="profession"
     )
 
     class Meta:
@@ -165,6 +170,24 @@ class WorkerSerializer(serializers.ModelSerializer):
             "email": {"required": False},
         }
 
+
+class BookingSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+    worker = serializers.StringRelatedField(read_only=True)
+    service = WorkerServiceSerializer(read_only=True)
+    service_id = serializers.PrimaryKeyRelatedField(
+        queryset=WorkerService.objects.all(),
+        source="service",
+        write_only=True
+    )
+
+    class Meta:
+        model = Booking
+        fields = [
+            "id", "user", "worker", "service", "service_id",
+            "date", "time", "status", "notes", "created_at"
+        ]
+        read_only_fields = ["id", "status", "created_at", "user", "worker", "service"]
 
 
 

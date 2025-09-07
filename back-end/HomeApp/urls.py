@@ -23,7 +23,7 @@ urlpatterns = [
     path('worker/dashboard',views.worker_dashboard,name='worker_dashboard'),
     path('worker/service',views.add_service,name='add_service'),
     path('worker/service/<int:service_id>',views.edit_service,name='edit_service'),
-    path('worker/service/<int:service_id>',views.delete_service,name='delete_service'),
+    # path('worker/service/<int:service_id>',views.delete_service,name='delete_service'),
 
     # Woker public view
     path('worker/worker_list',views.worker_list,name='worker_list'),
