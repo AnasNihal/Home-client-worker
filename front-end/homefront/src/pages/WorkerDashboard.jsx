@@ -203,7 +203,9 @@ const ProfileHeader = ({ workerData, setWorkerData }) => {
       setUploading(true);
       const res = await fetch(`${API_BASE_URL}/worker/dashboard`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+       Authorization: `Bearer ${token}`, // only Authorization
+       },
         body: formData,
       });
       if (!res.ok) throw new Error("Failed to upload image");

@@ -39,6 +39,8 @@ urlpatterns = [
     path("bookings/<int:booking_id>/update-status/", views.update_booking_status, name="update_booking_status"),
     # User booking cancel
     path("bookings/<int:booking_id>/cancel/", views.cancel_booking, name="cancel_booking"),
+    path("bookings/<int:booking_id>/complete/", views.user_complete_booking, name="user-complete-booking"),
+
 
 
 ]

@@ -108,6 +108,8 @@ def worker_dashboard(request):
         worker_data = WorkerSerializer(worker).data  
 
         # Get all bookings for this worker
+        completed_jobs = Booking.objects.filter(worker=worker, status="completed").count()
+
         bookings = Booking.objects.filter(worker=worker).select_related("user", "service")
         bookings_data = [
             {
@@ -124,6 +126,7 @@ def worker_dashboard(request):
         return Response({
             **worker_data,
             "bookings_count": bookings.count(),
+            "completed_jobs": completed_jobs,
             "bookings": bookings_data,
             "ratings": {
                 "average_rating": getattr(worker, "average_rating", 0),
@@ -132,6 +135,14 @@ def worker_dashboard(request):
         })
 
     elif request.method == "PUT":
+        # If an image is uploaded
+        if "image" in request.FILES:
+            worker.image = request.FILES["image"]
+            worker.save()
+            serializer = WorkerSerializer(worker)
+            return Response(serializer.data)
+
+        # Otherwise, handle JSON/profile updates
         serializer = WorkerSerializer(worker, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -180,11 +191,13 @@ def worker_list(request):
     serializer = WorkerSerializer(workers, many=True, context={'request': request})
     return Response(serializer.data)
 
-
 @api_view(['GET'])
 def worker_details(request, pk):
     worker = get_object_or_404(Worker, pk=pk)
     serializer = WorkerSerializer(worker, context={'request': request})
+
+    # ✅ Completed jobs count
+    completed_jobs = Booking.objects.filter(worker=worker, status="completed").count()
 
     # Fetch reviews directly from WorkerRating
     reviews = WorkerRating.objects.filter(worker=worker).select_related("user").order_by("-created_at")
@@ -201,8 +214,10 @@ def worker_details(request, pk):
 
     return Response({
         **serializer.data,
-        "ratings_list": reviews_list  # 👈 reviews attached here
+        "completedJobs": completed_jobs,   # 👈 added field
+        "ratings_list": reviews_list       # 👈 reviews attached here
     })
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -267,26 +282,49 @@ def profession_list(request):
 # Booking section
 
 
+from datetime import datetime
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_booking(request, worker_id):
     """
     User creates a booking for a specific worker & one service
+    Only one booking per worker per day is allowed.
     """
     if request.user.role.lower() != "user":
         return Response({"detail": "Only users can book services"}, status=403)
 
     worker = get_object_or_404(Worker, pk=worker_id)
-    service_id = request.data.get("service_id")   # ✅ single service_id
-    date = request.data.get("date")
+    service_id = request.data.get("service_id")
+    date_str = request.data.get("date")
     time = request.data.get("time")
 
-    if not service_id:
-        return Response({"detail": "Service must be selected"}, status=400)
+    if not service_id or not date_str:
+        return Response({"detail": "Service and date must be provided"}, status=400)
 
+    # Convert date string to Python date object
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return Response({"detail": "Invalid date format. Use YYYY-MM-DD."}, status=400)
+
+    # Check for existing booking for this worker on the same date
+    conflict = Booking.objects.filter(
+        worker=worker,
+        date=date_obj,
+        status__in=["pending", "accepted"]
+    ).exists()
+
+    if conflict:
+        return Response(
+            {"detail": f"{worker.name} is already booked on {date_obj}. Please choose another day."},
+            status=400
+        )
+
+    # Prepare serializer data
     data = {
         "service_id": service_id,
-        "date": date,
+        "date": date_obj,
         "time": time,
     }
 
@@ -297,9 +335,10 @@ def create_booking(request, worker_id):
             worker=worker,
             status="pending"
         )
-        return Response(BookingSerializer(booking).data, status=201)
+        return Response(BookingSerializer(booking, context={"request": request}).data, status=201)
     else:
         return Response(serializer.errors, status=400)
+
 
 
 @api_view(["GET"])
@@ -312,7 +351,9 @@ def user_bookings(request):
         return Response({"detail": "Only users can view their bookings"}, status=403)
 
     bookings = Booking.objects.filter(user=request.user).order_by("-created_at")
-    return Response(BookingSerializer(bookings, many=True).data)
+    serializer = BookingSerializer(bookings, many=True, context={"request": request})  # <-- pass context
+    return Response(serializer.data)
+
 
 
 @api_view(["GET"])
@@ -384,3 +425,23 @@ def cancel_booking(request, booking_id):
     )
 
     return Response(BookingSerializer(booking).data)
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def user_complete_booking(request, booking_id):
+    """
+    User marks their booking as completed
+    """
+    if request.user.role.lower() != "user":
+        return Response({"detail": "Only users can complete bookings"}, status=403)
+
+    booking = get_object_or_404(Booking, pk=booking_id, user=request.user)
+
+    if booking.status != "accepted":
+        return Response({"detail": "Booking must be accepted first"}, status=400)
+
+    booking.status = "completed"
+    booking.save()
+
+    return Response(BookingSerializer(booking, context={"request": request}).data, status=200)
+

@@ -104,7 +104,7 @@ class Booking(models.Model):
         ("pending", "Pending"),
         ("confirmed", "Confirmed"),
         ("accepted", "Accepted"),
-        ("declined", "Declined"),
+        ("declined", "Declined"),   
         ("completed", "Completed"),
         ("canceled", "Canceled"),
     )

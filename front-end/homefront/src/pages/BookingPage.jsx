@@ -38,40 +38,46 @@ export default function BookingPage() {
     );
   };
 
-  const handleBooking = async () => {
-    if (!selectedService || !date || !time) {
-      alert("Please select one service, a date, and a time");
+const handleBooking = async () => {
+  if (!selectedService || !date || !time) {
+    alert("Please select one service, a date, and a time");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const token = localStorage.getItem("access"); // JWT token
+    const res = await fetch(`http://127.0.0.1:8000/workers/${workerId}/book/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        service_id: selectedService.id, // only one service
+        date,
+        time,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      // Show backend message if available
+      alert(data.detail || "Failed to create booking");
       return;
     }
 
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("access"); // JWT token
-      const res = await fetch(`http://127.0.0.1:8000/workers/${workerId}/book/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          service_id: selectedService.id, // only one service
-          date,
-          time,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to create booking");
-      }
-
-      alert("Booking confirmed!");
-      navigate("/"); // redirect after booking
-    } catch (err) {
-      console.error(err);
-      alert("Error creating booking");
-    }
+    alert("Booking confirmed!");
+    navigate("/"); // redirect after booking
+  } catch (err) {
+    console.error(err);
+    alert("Error creating booking");
+  } finally {
     setLoading(false);
-  };
+  }
+};
+
 
   if (!worker) return <div className="text-center mt-10">Loading...</div>;
 

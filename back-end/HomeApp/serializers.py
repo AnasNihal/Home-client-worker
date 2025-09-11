@@ -188,13 +188,19 @@ class WorkerUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Worker
-        fields = ["id", "name", "user"]
+        fields = ["id",'image', "name", "user"]
 
     def get_user(self, obj):
         return {
             "username": obj.user.username,
             "email": obj.user.email
         }
+    
+    def get_image(self, obj):
+        request = self.context.get("request")
+        if obj.image:
+            return request.build_absolute_uri(obj.image.url)  # <-- full URL
+        return None
 
 
 # Serializer for Booking
