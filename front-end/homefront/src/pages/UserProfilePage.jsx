@@ -95,7 +95,7 @@ export default function UserProfilePage() {
       if (form.profileimage instanceof File) {
         data.append("profileimage", form.profileimage);
       }
-      const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile", {
+      const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile/", {
         method: "PUT",
         body: data,
       });

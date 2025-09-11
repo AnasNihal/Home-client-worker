@@ -54,23 +54,33 @@ export default function Login() {
       const response = await fetch("http://127.0.0.1:8000/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          username: formData.username,
+          password: formData.password
+        })
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // ✅ Save tokens and user info
+        // ✅ Save tokens and user info in localStorage
         localStorage.setItem("access", data.access);
         localStorage.setItem("refresh", data.refresh);
-        localStorage.setItem("role", data.role);
-        localStorage.setItem("username", data.username);
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            username: data.username,
+            role: data.role
+          })
+        );
 
         // ✅ Redirect based on role
         if (data.role === "worker") {
           navigate("/worker/dashboard");
-        } else {
+        } else if (data.role === "user") {
           navigate("/profile/me");
+        } else {
+          navigate("/");
         }
       } else {
         setErrors({ submit: data.detail || data.message || "Login failed" });

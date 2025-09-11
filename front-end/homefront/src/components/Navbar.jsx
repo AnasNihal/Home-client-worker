@@ -76,23 +76,29 @@ export default function Navbar() {
               : "http://127.0.0.1:8000/user/profile";
           const data = await fetchProfile(endpoint);
 
-          const normalized =
-            storedRole === "worker"
-              ? {
-                  name: data.name || data.username || "Worker",
-                  email: data.email || "",
-                  avatar: data.image || "",
-                  role: "worker",
-                }
-              : {
-                  name:
-                    `${data.first_name || ""} ${data.last_name || ""}`.trim() ||
-                    data.username ||
-                    "User",
-                  email: data.email || "",
-                  avatar: data.profileimage || "",
-                  role: "user",
-                };
+const normalized =
+  storedRole === "worker"
+    ? {
+        name: data.name || data.username || "Worker",
+        email: data.email || "",
+        avatar: data.image
+          ? data.image.startsWith("http")
+            ? data.image
+            : `http://127.0.0.1:8000${data.image}`
+          : "", // fallback
+        role: "worker",
+      }
+    : {
+        name: `${data.first_name || ""} ${data.last_name || ""}`.trim() || data.username || "User",
+        email: data.email || "",
+        avatar: data.profileimage
+          ? data.profileimage.startsWith("http")
+            ? data.profileimage
+            : `http://127.0.0.1:8000${data.profileimage}`
+          : "", // fallback if no image
+        role: "user",
+      };
+
 
           if (alive) {
             setUser(normalized);
@@ -171,16 +177,27 @@ export default function Navbar() {
 
   const isAuthed = !!user;
 
-  function handleLogout() {
-    localStorage.removeItem("access");
-    localStorage.removeItem("role");
-    setToken(null);
-    setRole(null);
-    setUser(null);
-    setIsProfileOpen(false);
-    setIsMenuOpen(false);
-  }
+function handleLogout() {
+  const confirmLogout = window.confirm("Are you sure you want to log out?");
+  if (!confirmLogout) return;
 
+  // Remove tokens and role from localStorage
+  localStorage.removeItem("access");
+  localStorage.removeItem("refresh");
+  localStorage.removeItem("role");
+  localStorage.removeItem("user");
+
+  // Update state immediately
+  setToken(null);
+  setRole(null);
+  setUser(null);
+  setIsProfileOpen(false);
+  setIsMenuOpen(false);
+
+  // Optionally redirect to login page
+  window.location.href = "/login";
+}
+  
   return (
 <nav
   className={`fixed w-full top-0 z-50 transition-all duration-300 ease-in-out ${
@@ -188,7 +205,7 @@ export default function Navbar() {
   } ${
     isScrolled
       ? "bg-green/90 backdrop-blur-sm shadow-lg"
-      : "bg-green/50 backdrop-blur-sm"
+      : "bg-green/70 backdrop-blur-sm"
   }`}
 >
 
@@ -221,11 +238,11 @@ export default function Navbar() {
                   disabled={userLoading}
                 >
                   <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
-                    {user?.avatar ? (
-                      <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-white font-semibold text-sm">{userLoading ? "…" : initials(user)}</span>
-                    )}
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-white font-semibold text-sm">{userLoading ? "…" : initials(user)}</span>
+                  )}
                   </div>
                   <div className="flex items-center gap-2 pr-2">
                     <span className="text-white font-medium text-sm">{userLoading ? "Loading…" : user.name}</span>
@@ -250,12 +267,12 @@ export default function Navbar() {
                       {user?.role === "worker" ? (
                         <>
                           <Link to="/worker/dashboard" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100" onClick={closeProfileMenu}>Worker Dashboard</Link>
-                          <Link to="" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100" onClick={closeProfileMenu}>Summary</Link>
+                          <Link to="/worker/summary" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100" onClick={closeProfileMenu}>Summary</Link>
                         </>
                       ) : (
                         <>
                           <Link to="/profile/me" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100" onClick={closeProfileMenu}>Profile</Link>
-                          <Link to="/settings" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100" onClick={closeProfileMenu}>Settings</Link>
+                          <Link to="/booking/details" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100" onClick={closeProfileMenu}>Booking Details</Link>
                         </>
                       )}
                       <button className="flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 w-full text-left" onClick={handleLogout}>Sign Out</button>

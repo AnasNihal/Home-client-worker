@@ -16,7 +16,7 @@ urlpatterns = [
     # user urls
     path('auth/login',views.login,name = 'login'),
     path('auth/user/register',views.user_register,name = 'user_register'),   
-    path('user/profile',views.user_profile,name='user_profile'),
+    path('user/profile/',views.user_profile,name='user_profile'),
 
     # Worker urls
     path('auth/worker/register',views.worker_register,name='worker_register'),
@@ -31,6 +31,14 @@ urlpatterns = [
     path("workers/<int:worker_id>/rate/", views.rate_worker, name="rate-worker"),
     path("worker/profession_list", views.profession_list, name="profession-list"),
 
+    # Booking urls
+
+    path("workers/<int:worker_id>/book/", views.create_booking, name="create_booking"),
+    path("user/bookings/", views.user_bookings, name="user_bookings"),
+    path("worker/bookings/", views.worker_bookings, name="worker_bookings"),
+    path("bookings/<int:booking_id>/update-status/", views.update_booking_status, name="update_booking_status"),
+    # User booking cancel
+    path("bookings/<int:booking_id>/cancel/", views.cancel_booking, name="cancel_booking"),
 
 
 ]

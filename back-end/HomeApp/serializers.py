@@ -132,6 +132,14 @@ class WorkerRatingSummarySerializer(serializers.ModelSerializer):
     def get_total_ratings(self, obj):
         return WorkerRating.objects.filter(worker=obj).count()
 
+class WorkerRatingSerializer(serializers.ModelSerializer):
+    user__username = serializers.CharField(source="user.username", read_only=True)
+
+    class Meta:
+        model = WorkerRating
+        fields = ["id", "rating", "review", "user__username"]
+
+
 class ProfessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profession
@@ -142,6 +150,8 @@ class WorkerSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     services = WorkerServiceSerializer(many=True, read_only=True)
     ratings = WorkerRatingSummarySerializer(source='*', read_only=True)# 🔹 include nested rating summary
+    reviews = WorkerRatingSerializer(source="ratings", many=True, read_only=True)
+
 
     # 🔹 Nested profession serializer (read-only)
     profession = ProfessionSerializer(read_only=True)
@@ -158,7 +168,7 @@ class WorkerSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'image', 'username', 'email', 'name', 'phone',
             'profession', 'profession_id', 'experience', 'location', 'bio',
-            'services', 'ratings'  # 🔹 include ratings here
+            'services', 'ratings' , 'reviews' # 🔹 include ratings here
         ]
         extra_kwargs = {
             "name": {"required": False},
@@ -171,10 +181,27 @@ class WorkerSerializer(serializers.ModelSerializer):
         }
 
 
+
+# Nested serializer for Worker user info
+class WorkerUserSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Worker
+        fields = ["id", "name", "user"]
+
+    def get_user(self, obj):
+        return {
+            "username": obj.user.username,
+            "email": obj.user.email
+        }
+
+
+# Serializer for Booking
 class BookingSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
-    worker = serializers.StringRelatedField(read_only=True)
-    service = WorkerServiceSerializer(read_only=True)
+    user = serializers.StringRelatedField(read_only=True)  # user who booked
+    worker = WorkerUserSerializer(read_only=True)          # nested worker info
+    service = WorkerServiceSerializer(read_only=True)      # nested service info
     service_id = serializers.PrimaryKeyRelatedField(
         queryset=WorkerService.objects.all(),
         source="service",

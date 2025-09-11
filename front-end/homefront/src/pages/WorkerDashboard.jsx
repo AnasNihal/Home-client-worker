@@ -1,7 +1,7 @@
 // src/pages/WorkerDashboard.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  UserIcon, PlusIcon, PencilIcon,  BriefcaseIcon, MapPinIcon, PhoneIcon, EnvelopeIcon
+  UserIcon, PlusIcon, PencilIcon, BriefcaseIcon, MapPinIcon, PhoneIcon, EnvelopeIcon
 } from '@heroicons/react/24/outline';
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -20,6 +20,7 @@ const WorkerDashboard = () => {
     'Content-Type': 'application/json'
   }), [getAuthToken]);
 
+  // ----------------- Load Worker Dashboard -----------------
   const loadWorkerData = useCallback(async () => {
     try {
       setLoading(true);
@@ -124,9 +125,9 @@ const WorkerDashboard = () => {
   if (!workerData) return <ErrorMessage message="No worker data found" onRetry={loadWorkerData} />;
 
   return (
-<div className="min-h-screen bg-light_green p-4 sm:p-6 relative top-24">
+    <div className="min-h-screen bg-light_green p-4 sm:p-6 relative top-24">
       <div className="max-w-5xl mx-auto space-y-6">
-        <ProfileHeader workerData={workerData} onEdit={() => setIsProfileModalOpen(true)} />
+        <ProfileHeader workerData={workerData} setWorkerData={setWorkerData} />
         <ProfileDetails workerData={workerData} onEdit={() => setIsProfileModalOpen(true)} />
         <ServicesSection 
           services={workerData?.services || []}
@@ -182,30 +183,95 @@ const ErrorMessage = ({ message, onRetry }) => (
   </div>
 );
 
-const ProfileHeader = ({ workerData, onEdit }) => {
-  const getInitials = (name) => name ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : 'W';
+// ----------------- Profile Header (fixed image upload) -----------------
+const ProfileHeader = ({ workerData, setWorkerData }) => {
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleImageClick = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const token = localStorage.getItem("access");
+    const formData = new FormData();
+    formData.append("image", file);
+
+    try {
+      setUploading(true);
+      const res = await fetch(`${API_BASE_URL}/worker/dashboard`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Failed to upload image");
+      const data = await res.json();
+      setWorkerData(data); // update immediately
+    } catch (err) {
+      console.error(err);
+      alert("Image upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const getInitials = (name) =>
+    name ? name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) : "W";
+
   return (
     <div className="bg-green/20 rounded-3xl p-6 sm:p-8 shadow-xl relative">
       <div className="flex flex-col sm:flex-row items-center gap-6">
-        <div className="relative">
+        <div className="relative group">
           {workerData?.image ? (
-            <img src={workerData.image} alt="Profile" className="w-32 h-32 rounded-full object-cover shadow-lg" />
+            <img
+              src={`${API_BASE_URL}${workerData.image}`}
+              alt="Profile"
+              className="w-32 h-32 rounded-full object-cover shadow-lg cursor-pointer"
+              onClick={handleImageClick}
+            />
           ) : (
-            <div className="w-32 h-32 rounded-full bg-green flex items-center justify-center text-white font-bold text-4xl shadow-lg">
+            <div
+              className="w-32 h-32 rounded-full bg-green flex items-center justify-center text-white font-bold text-4xl shadow-lg cursor-pointer"
+              onClick={handleImageClick}
+            >
               {getInitials(workerData?.name || workerData?.username)}
             </div>
           )}
+
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            onChange={handleImageChange}
+            className="hidden"
+          />
+
+          {/* Overlay edit button */}
+          <div
+            onClick={handleImageClick}
+            className="absolute bottom-0 right-0 bg-yellow text-green p-2 rounded-full cursor-pointer shadow-md hover:bg-yellow/90"
+          >
+            {uploading ? "⏳" : "✏️"}
+          </div>
         </div>
-            <div className="flex-1 text-center sm:text-left">
-            <h1 className="text-3xl sm:text-4xl font-bold text-green mb-2">{workerData?.name || 'Worker'}</h1>
-            <p className="text-yellow font-medium">{workerData?.profession?.name || 'Professional'}</p>
-            <div className="mt-2 text-green">{workerData?.email || 'N/A'}</div>
-            </div>
+        <div className="flex-1 text-center sm:text-left">
+          <h1 className="text-3xl sm:text-4xl font-bold text-green mb-2">
+            {workerData?.name || "Worker"}
+          </h1>
+          <p className="text-yellow font-medium">
+            {workerData?.profession?.name || "Professional"}
+          </p>
+          <div className="mt-2 text-green">{workerData?.email || "N/A"}</div>
+        </div>
       </div>
     </div>
   );
 };
 
+// ----------------- Rest of Components (unchanged) -----------------
 const ProfileDetails = ({ workerData, onEdit }) => (
   <div className="bg-green/20 rounded-3xl p-6 sm:p-8 shadow-xl relative">
     <h2 className="text-2xl font-bold text-green mb-4">Profile Details</h2>
@@ -306,7 +372,7 @@ const ProfileEditModal = ({ workerData, onClose, onSave }) => {
   const [professions, setProfessions] = useState([]);
 
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/worker/profession_list`)
+    fetch(`${API_BASE_URL}/worker/profession_list/`)
       .then(res => res.json())
       .then(data => setProfessions(data))
       .catch(err => console.error(err));

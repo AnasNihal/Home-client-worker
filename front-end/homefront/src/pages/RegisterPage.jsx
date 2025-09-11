@@ -134,7 +134,7 @@ export default function Register() {
         });
 
         const data = await res.json();
-        if (res.ok) window.location.href = '/';
+        if (res.ok) window.location.href = '/login';
         else setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
       }
     } catch (err) {

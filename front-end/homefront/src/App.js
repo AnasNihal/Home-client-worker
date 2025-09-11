@@ -1,13 +1,12 @@
   import React from 'react';
   import { BrowserRouter , Routes, Route , useLocation} from 'react-router-dom';
   import ScrollToTop from "./ScrollToTop"; 
-  import ProtectedRoute from './components/ProtectedRoute';
+  import PrivateRoute from './utlis/PrivateRoute';
   import Navbar from "./components/Navbar";
   import WorkerPage from './pages/WorkerPage';
   import Home from "./pages/Home";
   import Footer from './components/Footer';
   import AboutPage from './pages/AboutPage';
-  import BookingPage from './pages/BookingPage';
   import WorkerDetails from './pages/WorkerDetails';
   import ContactUs from './pages/ContactUs';
   import BlogPage from './pages/BlogPage';
@@ -16,6 +15,9 @@
   import ProfilePage from './pages/UserProfilePage';
   import WorkerDashboard from './pages/WorkerDashboard';
   import WorkerSummary from './pages/WorkerSummaryPage';
+  import BookingPage from './pages/BookingPage';
+  import UserBookingsPage from './pages/UserBookingDetailsPage';
+
 
 function App() {
   const location = useLocation();
@@ -31,22 +33,35 @@ function App() {
           <Route path="/worker" element={<WorkerPage />} />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/about" element={<AboutPage />} />
-          <Route path="/booking" element={<BookingPage />} />
           <Route path="/workers/:workerId" element={<WorkerDetails />} />
           <Route path="/contactus" element={<ContactUs />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="profile/me" element={
-            <ProtectedRoute allowedRoles={['user']}>
+            <PrivateRoute role='user'>
               <ProfilePage />
-            </ProtectedRoute>
+            </PrivateRoute>
           } />
           <Route path="/worker/dashboard" element={
-            <ProtectedRoute allowedRoles={['worker']}>
+            <PrivateRoute role='worker'>
               <WorkerDashboard />
-            </ProtectedRoute>
+            </PrivateRoute>
           } />
-          <Route path="/worker/summary" element={<WorkerSummary />} />
+          <Route path="/worker/summary" element={
+            <PrivateRoute>
+            <WorkerSummary role='worker'/>
+            </PrivateRoute>
+            } />
+          <Route path="/booking/:workerId" element={  
+             <PrivateRoute>
+            <BookingPage role='user'/>
+            </PrivateRoute>} />
+
+          <Route path="/booking/details" element={<PrivateRoute>
+            <UserBookingsPage role='user'/>
+            </PrivateRoute>} />
+
+          
 
         </Routes>
       </main>

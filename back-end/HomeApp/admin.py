@@ -1,11 +1,12 @@
 from django.contrib import admin
-from .models import UserProfile,WorkerService,Worker,CustomerUser,WorkerRating,Profession
+from .models import UserProfile,WorkerService,Worker,CustomerUser,WorkerRating,Profession,Booking
 # Register your models here.
 admin.site.register(UserProfile)
 admin.site.register(WorkerService)
 admin.site.register(Worker)
 admin.site.register(CustomerUser)
 admin.site.register(WorkerRating)
+admin.site.register(Booking)
 
 @admin.register(Profession)
 class ProfessionAdmin(admin.ModelAdmin):

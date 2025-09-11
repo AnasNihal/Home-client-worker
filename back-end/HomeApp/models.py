@@ -92,10 +92,11 @@ class WorkerRating(models.Model):
     worker = models.ForeignKey(Worker, related_name="ratings", on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     rating = models.IntegerField(default=1)  # 1–5 stars
+    review = models.TextField(blank=True, null=True)  # ✅ store review
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("worker", "user") 
+        unique_together = ("worker", "user")
 
 # models.py
 class Booking(models.Model):
