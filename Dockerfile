@@ -1,13 +1,20 @@
 #######################################
-# 1) Build Frontend (React with Bun)
+# 1) Build Frontend (React + Bun)
 #######################################
 FROM oven/bun:latest AS frontend
 WORKDIR /app/frontend
 
-COPY front-end/homefront/package.json front-end/homefront/bun.lock ./
+# Copy package files
+COPY front-end/homefront/package.json ./
+COPY front-end/homefront/bun.lock ./
+
+# Install dependencies
 RUN bun install
 
+# Copy whole frontend project
 COPY front-end/homefront/ .
+
+# Build React
 RUN bun run build
 
 
@@ -17,20 +24,20 @@ RUN bun run build
 FROM python:3.10-slim AS backend
 WORKDIR /app
 
-# Install dependencies
+# Install backend dependencies
 COPY back-end/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
+# Copy backend project
 COPY back-end/ .
 
-# Copy frontend build into Django static folder
-COPY --from=frontend /app/frontend/build/static /app/static
+# Copy frontend build output (static + index)
+COPY --from=frontend /app/frontend/build/static /app/static/
 COPY --from=frontend /app/frontend/build/index.html /app/templates/index.html
 
 
 #######################################
-# 3) Final Image
+# 3) Final Production Image
 #######################################
 FROM python:3.10-slim
 WORKDIR /app
@@ -38,14 +45,14 @@ WORKDIR /app
 COPY back-end/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy entire backend app (including static, templates, HomeService, HomeApp)
+# Copy complete backend code generated in previous stage
 COPY --from=backend /app /app
 
-# Copy entrypoint
+# Add entrypoint
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8000
 
-# Use entrypoint for migrations + collectstatic + gunicorn
+# Start the app using entrypoint
 CMD ["/app/entrypoint.sh"]
