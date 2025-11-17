@@ -79,9 +79,12 @@ WSGI_APPLICATION = "HomeService.wsgi.application"
 # -------------------------------------------------------------------
 DATABASES = {
     'default': dj_database_url.parse(
-        config('DATABASE_URL'),
+        config(
+            'DATABASE_URL',
+            default='postgresql://postgres:postgres@localhost:5432/postgres'
+        ),
         conn_max_age=600,
-        ssl_require=True
+        ssl_require=False  # Important for local build
     )
 }
 # -------------------------------------------------------------------
