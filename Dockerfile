@@ -2,7 +2,7 @@
 # 1) Build Frontend (React + Bun)
 #######################################
 FROM oven/bun:latest AS frontend
-WORKDIR /app/frontend
+WORKDIR /app
 
 # Copy package files
 COPY front-end/homefront/package.json ./
@@ -32,8 +32,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY back-end/ .
 
 # Copy frontend build output (static + index)
-COPY --from=frontend /app/frontend/build/static /app/static/
-COPY --from=frontend /app/frontend/build/index.html /app/templates/index.html
+COPY --from=frontend /app/build/static /app/static/
+COPY --from=frontend /app/build/index.html /app/templates/index.html
 
 
 #######################################
