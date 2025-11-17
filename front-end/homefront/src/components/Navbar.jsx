@@ -213,7 +213,7 @@ function handleLogout() {
         <div className="flex justify-between items-center py-4">
           <Link to="/" onClick={closeMobileMenu}>
             <div className="flex items-center gap-2 text-2xl font-bold text-primary">
-              <img src="/images/OltonLogo.png" alt="Olton Logo" className="h-8 w-auto" />
+              <img src="/static/images/OltonLogo.png" alt="Olton Logo" className="h-8 w-auto" />
             </div>
           </Link>
 

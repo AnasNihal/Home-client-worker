@@ -4,6 +4,7 @@ from django.urls import path,include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenRefreshView
+from django.views.generic import TemplateView
 from .views import login
 
 
@@ -41,6 +42,6 @@ urlpatterns = [
     path("bookings/<int:booking_id>/cancel/", views.cancel_booking, name="cancel_booking"),
     path("bookings/<int:booking_id>/complete/", views.user_complete_booking, name="user-complete-booking"),
 
-
+    path('', TemplateView.as_view(template_name="index.html"), name="home"),
 
 ]

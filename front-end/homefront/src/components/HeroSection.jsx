@@ -82,7 +82,7 @@ export default function HeroSection() {
         {/* Kitchen Image */}
         <img
           ref={kitchenImageRef}
-          src="/images/herosection-img-kitchen.jpg"
+          src="/static/images/herosection-img-kitchen.jpg"
           alt="Cleaning Service"
           className={`relative z-10 rounded-lg w-[440px] md:w-[500px] hover:scale-105 transition-transform duration-300 fade-in-scale stagger-2 ${
             kitchenImageVisible ? 'animate' : ''
@@ -93,7 +93,7 @@ export default function HeroSection() {
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-20 w-[420px] md:w-[500px] overflow-hidden">
           <img
             ref={maidImageRef}
-            src="/images/herosection-maid.png"
+            src="/static/images/herosection-maid.png"
             alt="Maid"
             className={`w-full hover:scale-105 transition-transform duration-300 fade-in-up stagger-3 ${
               maidImageVisible ? 'animate' : ''

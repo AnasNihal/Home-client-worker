@@ -22,7 +22,7 @@ export default function BookingPage() {
 
   useEffect(() => {
     // Fetch worker details
-    fetch(`http://127.0.0.1:8000/worker/worker_details/${workerId}`)
+    fetch(`http://127.0.0.1:8000/api/worker/worker_details/${workerId}`)
       .then((res) => res.json())
       .then((data) => {
         setWorker(data);
