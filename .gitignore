@@ -35,3 +35,6 @@ back-end/instance/
 *.swo
 .DS_Store
 Thumbs.db
+
+
+.env
