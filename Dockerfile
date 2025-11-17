@@ -1,35 +1,48 @@
-# ---------------------------------------------------
-# 1) Build React (Bun)
-# ---------------------------------------------------
+# =========================================
+# 1) Build React Frontend
+# =========================================
 FROM oven/bun:latest AS frontend
 WORKDIR /app/frontend
+
 COPY front-end/homefront/package.json front-end/homefront/bun.lock ./
 RUN bun install
+
 COPY front-end/homefront/ .
 RUN bun run build
 
-# ---------------------------------------------------
-# 2) Build Django backend
-# ---------------------------------------------------
+
+# =========================================
+# 2) Backend Build Stage
+# =========================================
 FROM python:3.10-slim AS backend
 WORKDIR /app
+
+# Install backend dependencies
 COPY back-end/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend project
 COPY back-end/ .
 
-# collect static files into /app/staticfiles
+# Collect static files
 RUN python manage.py collectstatic --noinput
 
-# ---------------------------------------------------
-# 3) Final Image (only Django + Gunicorn)
-# ---------------------------------------------------
+
+# =========================================
+# 3) Final Production Image
+# =========================================
 FROM python:3.10-slim
 WORKDIR /app
 
-COPY --from=backend /app /app
-COPY --from=frontend /app/frontend/build /app/static
+# Install runtime Python deps
+COPY back-end/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN pip install gunicorn
+# Copy backend code + staticfiles from backend image
+COPY --from=backend /app /app
+
+# Copy built frontend into Django static folder
+COPY --from=frontend /app/frontend/build /app/static
 
 EXPOSE 8000
 
