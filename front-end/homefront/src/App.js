@@ -8,7 +8,6 @@
   import Footer from './components/Footer';
   import AboutPage from './pages/AboutPage';
   import WorkerDetails from './pages/WorkerDetails';
-  import ContactUs from './pages/ContactUs';
   import BlogPage from './pages/BlogPage';
   import Login from './pages/LoginPage';  
   import Register from './pages/RegisterPage';
@@ -34,7 +33,6 @@ function App() {
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/workers/:workerId" element={<WorkerDetails />} />
-          <Route path="/contactus" element={<ContactUs />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="profile/me" element={

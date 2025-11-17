@@ -8,3 +8,5 @@ PyJWT==2.10.1
 sqlparse==0.5.3
 gunicorn==22.0.0
 whitenoise==6.5.0
+python-decouple
+dj-database-url
