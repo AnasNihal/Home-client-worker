@@ -1,24 +1,28 @@
 #######################################
 # 1) Build Frontend (React + Bun)
 #######################################
-FROM oven/bun:latest AS frontend
+FROM node:18-alpine AS frontend
 WORKDIR /app
 
 # Copy package files
 COPY front-end/homefront/package.json ./
-COPY front-end/homefront/bun.lock ./
+COPY front-end/homefront/package-lock.json* ./
 
 # Install dependencies
-RUN bun install
+RUN npm install --legacy-peer-deps
 
 # Copy whole frontend project
 COPY front-end/homefront/ .
 
-# Build React (this creates the build folder)
-RUN bun run build
+# Build React
+RUN npm run build
 
-# Verify build output exists
-RUN ls -la && pwd && find . -name "index.html" -o -name "static"
+# List what was actually created
+RUN echo "=== Contents of /app ===" && ls -la /app && \
+    echo "=== Looking for build directories ===" && \
+    find /app -type d -name "build" -o -name "dist" && \
+    echo "=== Looking for index.html ===" && \
+    find /app -name "index.html"
 
 
 #######################################
@@ -37,16 +41,24 @@ COPY back-end/ .
 # Create directories
 RUN mkdir -p /app/static /app/templates
 
-# Copy entire build folder first, then organize
-COPY --from=frontend /app/build /tmp/frontend-build
+# Copy the entire build output first
+COPY --from=frontend /app/build /tmp/react-build || \
+     COPY --from=frontend /app/dist /tmp/react-build || \
+     echo "Build directory not found"
 
-# Move files to correct locations
-RUN if [ -d /tmp/frontend-build/static ]; then \
-        cp -r /tmp/frontend-build/static/* /app/static/; \
+# List what we got
+RUN ls -la /tmp/react-build/ || echo "No build files copied"
+
+# Copy files more carefully
+RUN if [ -f /tmp/react-build/index.html ]; then \
+        cp /tmp/react-build/index.html /app/templates/index.html && \
+        if [ -d /tmp/react-build/static ]; then \
+            cp -r /tmp/react-build/static/* /app/static/; \
+        fi; \
     else \
-        cp -r /tmp/frontend-build/* /app/static/; \
-    fi && \
-    cp /tmp/frontend-build/index.html /app/templates/index.html
+        echo "ERROR: index.html not found in build output"; \
+        exit 1; \
+    fi
 
 
 #######################################
