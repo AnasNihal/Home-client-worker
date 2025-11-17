@@ -14,8 +14,11 @@ RUN bun install
 # Copy whole frontend project
 COPY front-end/homefront/ .
 
-# Build React
+# Build React (this creates the build folder)
 RUN bun run build
+
+# Verify build output exists
+RUN ls -la && pwd && find . -name "index.html" -o -name "static"
 
 
 #######################################
@@ -31,9 +34,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend project
 COPY back-end/ .
 
-# Copy frontend build output (static + index)
-COPY --from=frontend /app/build/static /app/static/
-COPY --from=frontend /app/build/index.html /app/templates/index.html
+# Create directories
+RUN mkdir -p /app/static /app/templates
+
+# Copy entire build folder first, then organize
+COPY --from=frontend /app/build /tmp/frontend-build
+
+# Move files to correct locations
+RUN if [ -d /tmp/frontend-build/static ]; then \
+        cp -r /tmp/frontend-build/static/* /app/static/; \
+    else \
+        cp -r /tmp/frontend-build/* /app/static/; \
+    fi && \
+    cp /tmp/frontend-build/index.html /app/templates/index.html
 
 
 #######################################
