@@ -23,18 +23,36 @@ cd ../..
 
 # Create directories if they don't exist
 mkdir -p back-end/static
+mkdir -p back-end/static/images        # <-- ensure images folder exists
 mkdir -p back-end/templates
 mkdir -p back-end/media
+
+# Backup images before cleaning
+echo "📦 Backing up existing images..."
+if [ -d "back-end/static/images" ]; then
+    cp -r back-end/static/images back-end/images_backup
+fi
 
 # Remove old static files
 echo "🧹 Cleaning old static files..."
 rm -rf back-end/static/*
 
+# Restore images after cleaning
+echo "📦 Restoring custom images..."
+if [ -d "back-end/images_backup" ]; then
+    mkdir -p back-end/static/images
+    cp -r back-end/images_backup/* back-end/static/images/
+    rm -rf back-end/images_backup
+    echo "✅ Custom images restored"
+else
+    echo "⚠️ No custom images to restore"
+fi
+
 # Copy React static files
 echo "📂 Copying static files..."
 if [ -d "front-end/homefront/build/static" ]; then
     cp -r front-end/homefront/build/static/* back-end/static/
-    echo "✅ Static files copied"
+    echo "✅ React static files copied"
 else
     echo "❌ ERROR: build/static not found!"
     exit 1
@@ -61,7 +79,7 @@ echo "📦 Installing Python packages..."
 pip install -r requirements.txt
 
 # Collect static files
-echo "📦 Collecting static files..."
+echo "📦 Collecting static files (Django)..."
 python manage.py collectstatic --no-input
 
 # Run migrations
