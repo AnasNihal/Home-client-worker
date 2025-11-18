@@ -1,7 +1,7 @@
   import React from 'react';
   import { BrowserRouter , Routes, Route , useLocation} from 'react-router-dom';
   import ScrollToTop from "./ScrollToTop"; 
-  import PrivateRoute from './utlis/PrivateRoute';
+  import PrivateRoute from './utils/PrivateRoute';
   import Navbar from "./components/Navbar";
   import WorkerPage from './pages/WorkerPage';
   import Home from "./pages/Home";

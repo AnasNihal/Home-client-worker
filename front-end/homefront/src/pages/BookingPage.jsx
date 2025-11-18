@@ -1,6 +1,7 @@
 // src/pages/BookingPage.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { fetchAPI, postAPI, getImageURL } from  '../utils/api'
 
 const theme = {
   green: "#1c392e",
@@ -22,13 +23,18 @@ export default function BookingPage() {
 
   useEffect(() => {
     // Fetch worker details
-    fetch(`http://127.0.0.1:8000/api/worker/worker_details/${workerId}`)
-      .then((res) => res.json())
-      .then((data) => {
+    const loadWorkerDetails = async () => {
+      try {
+        const data = await fetchAPI(`/api/worker/worker_details/${workerId}`);
         setWorker(data);
         setServices(data.services);
-      })
-      .catch((err) => console.error(err));
+      } catch (err) {
+        console.error("Error fetching worker details:", err);
+        alert("Failed to load worker details");
+      }
+    };
+
+    loadWorkerDetails();
   }, [workerId]);
 
   // Toggle service selection (only one service)
@@ -38,46 +44,29 @@ export default function BookingPage() {
     );
   };
 
-const handleBooking = async () => {
-  if (!selectedService || !date || !time) {
-    alert("Please select one service, a date, and a time");
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const token = localStorage.getItem("access"); // JWT token
-    const res = await fetch(`http://127.0.0.1:8000/workers/${workerId}/book/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        service_id: selectedService.id, // only one service
-        date,
-        time,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      // Show backend message if available
-      alert(data.detail || "Failed to create booking");
+  const handleBooking = async () => {
+    if (!selectedService || !date || !time) {
+      alert("Please select one service, a date, and a time");
       return;
     }
 
-    alert("Booking confirmed!");
-    navigate("/"); // redirect after booking
-  } catch (err) {
-    console.error(err);
-    alert("Error creating booking");
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+    try {
+      const data = await postAPI(`/workers/${workerId}/book/`, {
+        service_id: selectedService.id, // only one service
+        date,
+        time,
+      });
 
+      alert("Booking confirmed!");
+      navigate("/"); // redirect after booking
+    } catch (err) {
+      console.error("Booking error:", err);
+      alert(err.message || "Failed to create booking");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!worker) return <div className="text-center mt-10">Loading...</div>;
 
@@ -91,7 +80,7 @@ const handleBooking = async () => {
         <div className="flex items-center mb-6">
           {worker.image ? (
             <img
-              src={worker.image}
+              src={getImageURL(worker.image)}
               alt={worker.name}
               className="w-24 h-24 rounded-full mr-4 object-cover"
             />
@@ -104,7 +93,7 @@ const handleBooking = async () => {
             <h2 className="text-2xl font-bold" style={{ color: theme.green }}>
               {worker.name}
             </h2>
-            <p className="text-gray-700">{worker.profession.name}</p>
+            <p className="text-gray-700">{worker.profession?.name || worker.profession}</p>
             <p className="text-gray-500">{worker.location}</p>
           </div>
         </div>
@@ -155,6 +144,7 @@ const handleBooking = async () => {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="w-full border rounded px-3 py-2"
+              min={new Date().toISOString().split('T')[0]} // Prevent past dates
             />
           </div>
           <div>
@@ -192,7 +182,7 @@ const handleBooking = async () => {
         <button
           onClick={handleBooking}
           disabled={loading}
-          className="w-full py-3 text-white font-bold rounded-lg"
+          className="w-full py-3 text-white font-bold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ backgroundColor: theme.green }}
         >
           {loading ? "Booking..." : "Confirm Booking"}

@@ -1,22 +1,19 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import { fetchAPI, getImageURL } from "../utils/api";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [visible, setVisible] = useState(true);
-
-  // Dynamic user from backend
-  const [user, setUser] = useState(null); // { name, email, avatar, role } | null
+  const [user, setUser] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
-
-  // Track token & role in state
   const [token, setToken] = useState(localStorage.getItem("access"));
   const [role, setRole] = useState(localStorage.getItem("role") || null);
 
-  // Scroll behavior
   const prevScrollYRef = useRef(0);
+  
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -28,7 +25,6 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Listen for token/role changes in other tabs
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === "access") setToken(e.newValue);
@@ -41,20 +37,8 @@ export default function Navbar() {
   const closeMobileMenu = () => setIsMenuOpen(false);
   const closeProfileMenu = () => setIsProfileOpen(false);
 
-  // Fetch profile
   useEffect(() => {
     let alive = true;
-
-    const fetchProfile = async (endpoint) => {
-      const res = await fetch(endpoint, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (!res.ok) throw new Error("fetch failed");
-      return await res.json();
-    };
 
     const load = async () => {
       setUserLoading(true);
@@ -70,35 +54,22 @@ export default function Navbar() {
       try {
         const storedRole = localStorage.getItem("role") || role;
         if (storedRole) {
-          const endpoint =
-            storedRole === "worker"
-              ? "http://127.0.0.1:8000/worker/dashboard"
-              : "http://127.0.0.1:8000/user/profile";
-          const data = await fetchProfile(endpoint);
+          const endpoint = storedRole === "worker" ? "/worker/dashboard" : "/user/profile";
+          const data = await fetchAPI(endpoint);
 
-const normalized =
-  storedRole === "worker"
-    ? {
-        name: data.name || data.username || "Worker",
-        email: data.email || "",
-        avatar: data.image
-          ? data.image.startsWith("http")
-            ? data.image
-            : `http://127.0.0.1:8000${data.image}`
-          : "", // fallback
-        role: "worker",
-      }
-    : {
-        name: `${data.first_name || ""} ${data.last_name || ""}`.trim() || data.username || "User",
-        email: data.email || "",
-        avatar: data.profileimage
-          ? data.profileimage.startsWith("http")
-            ? data.profileimage
-            : `http://127.0.0.1:8000${data.profileimage}`
-          : "", // fallback if no image
-        role: "user",
-      };
-
+          const normalized = storedRole === "worker"
+            ? {
+                name: data.name || data.username || "Worker",
+                email: data.email || "",
+                avatar: getImageURL(data.image),
+                role: "worker",
+              }
+            : {
+                name: `${data.first_name || ""} ${data.last_name || ""}`.trim() || data.username || "User",
+                email: data.email || "",
+                avatar: getImageURL(data.profileimage),
+                role: "user",
+              };
 
           if (alive) {
             setUser(normalized);
@@ -108,17 +79,13 @@ const normalized =
           return;
         }
 
-        // If no stored role, try user first
         try {
-          const data = await fetchProfile("http://127.0.0.1:8000/user/profile");
+          const data = await fetchAPI("/user/profile");
           if (alive) {
             setUser({
-              name:
-                `${data.first_name || ""} ${data.last_name || ""}`.trim() ||
-                data.username ||
-                "User",
+              name: `${data.first_name || ""} ${data.last_name || ""}`.trim() || data.username || "User",
               email: data.email || "",
-              avatar: data.profileimage || "",
+              avatar: getImageURL(data.profileimage),
               role: "user",
             });
             setRole("user");
@@ -130,12 +97,12 @@ const normalized =
         }
 
         try {
-          const data = await fetchProfile("http://127.0.0.1:8000/worker/dashboard");
+          const data = await fetchAPI("/worker/dashboard");
           if (alive) {
             setUser({
               name: data.name || data.username || "Worker",
               email: data.email || "",
-              avatar: data.image || "",
+              avatar: getImageURL(data.image),
               role: "worker",
             });
             setRole("worker");
@@ -161,54 +128,35 @@ const normalized =
     };
 
     load();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [token, role]);
 
   const initials = (u) =>
-    (u?.name
-      ? u.name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-      : "G"
-    ).toUpperCase();
+    (u?.name ? u.name.split(" ").map((n) => n[0]).join("") : "G").toUpperCase();
 
   const isAuthed = !!user;
 
-function handleLogout() {
-  const confirmLogout = window.confirm("Are you sure you want to log out?");
-  if (!confirmLogout) return;
+  function handleLogout() {
+    const confirmLogout = window.confirm("Are you sure you want to log out?");
+    if (!confirmLogout) return;
 
-  // Remove tokens and role from localStorage
-  localStorage.removeItem("access");
-  localStorage.removeItem("refresh");
-  localStorage.removeItem("role");
-  localStorage.removeItem("user");
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("role");
+    localStorage.removeItem("user");
 
-  // Update state immediately
-  setToken(null);
-  setRole(null);
-  setUser(null);
-  setIsProfileOpen(false);
-  setIsMenuOpen(false);
+    setToken(null);
+    setRole(null);
+    setUser(null);
+    setIsProfileOpen(false);
+    setIsMenuOpen(false);
 
-  // Optionally redirect to login page
-  window.location.href = "/login";
-}
+    window.location.href = "/login";
+  }
   
   return (
-<nav
-  className={`fixed w-full top-0 z-50 transition-all duration-300 ease-in-out ${
-    visible ? "translate-y-0" : "-translate-y-full"
-  } ${
-    isScrolled
-      ? "bg-green/90 backdrop-blur-sm shadow-lg"
-      : "bg-green/70 backdrop-blur-sm"
-  }`}
->
-
+    <nav className={`fixed w-full top-0 z-50 transition-all duration-300 ease-in-out ${visible ? "translate-y-0" : "-translate-y-full"} ${isScrolled ? "bg-green/90 backdrop-blur-sm shadow-lg" : "bg-green/70 backdrop-blur-sm"}`}>
+      {/* Rest of your JSX remains exactly the same */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex justify-between items-center py-4">
           <Link to="/" onClick={closeMobileMenu}>
@@ -232,17 +180,13 @@ function handleLogout() {
           <div className="hidden lg:block relative">
             {isAuthed ? (
               <>
-                <button
-                  onClick={() => setIsProfileOpen((v) => !v)}
-                  className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-full p-2 hover:bg-white/20 transition-all duration-200 border border-white/20"
-                  disabled={userLoading}
-                >
+                <button onClick={() => setIsProfileOpen((v) => !v)} className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-full p-2 hover:bg-white/20 transition-all duration-200 border border-white/20" disabled={userLoading}>
                   <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
-                  {user?.avatar ? (
-                    <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-white font-semibold text-sm">{userLoading ? "…" : initials(user)}</span>
-                  )}
+                    {user?.avatar ? (
+                      <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white font-semibold text-sm">{userLoading ? "…" : initials(user)}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 pr-2">
                     <span className="text-white font-medium text-sm">{userLoading ? "Loading…" : user.name}</span>
@@ -303,7 +247,6 @@ function handleLogout() {
         {/* Mobile Dropdown */}
         <div className={`lg:hidden overflow-hidden transition-all duration-300 ${isMenuOpen ? "max-h-screen opacity-100" : "max-h-0 opacity-0"}`}>
           <div className="py-4 bg-black/95 backdrop-blur-sm rounded-lg mx-2 mb-4">
-            {/* Mobile User */}
             <div className="px-6 pb-4 border-b border-white/20 mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
@@ -320,7 +263,6 @@ function handleLogout() {
               </div>
             </div>
 
-            {/* Mobile Links */}
             <ul className="flex flex-col space-y-4 px-6">
               <li><Link to="/" className="block text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Home</Link></li>
               <li><Link to="/About" className="block text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>About</Link></li>
@@ -329,7 +271,6 @@ function handleLogout() {
               <li><Link to="/contactus" className="block text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Contact</Link></li>
             </ul>
 
-            {/* Mobile Profile Menu */}
             <div className="px-6 pt-4 border-t border-white/20 mt-4">
               <div className="space-y-2">
                 {isAuthed ? (
@@ -345,7 +286,6 @@ function handleLogout() {
                         <Link to="/settings" className="flex items-center gap-3 text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Settings</Link>
                       </>
                     )}
-
                     <button className="flex items-center gap-3 text-red-400 hover:text-red-300 py-2 w-full text-left" onClick={() => { handleLogout(); closeMobileMenu(); }}>Sign Out</button>
                   </>
                 ) : (
@@ -360,7 +300,6 @@ function handleLogout() {
         </div>
       </div>
 
-      {/* Overlays */}
       {isMenuOpen && <div className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={closeMobileMenu} />}
       {isProfileOpen && <div className="hidden lg:block fixed inset-0 z-40" onClick={closeProfileMenu} />}
     </nav>

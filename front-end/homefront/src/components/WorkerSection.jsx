@@ -1,6 +1,7 @@
 // src/components/WorkerSection.jsx
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { fetchAPI, getImageURL } from "../utils/api";
 
 export default function WorkersSection() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -14,15 +15,14 @@ export default function WorkersSection() {
     let cancelled = false;
     async function fetchWorkers() {
       try {
-        const res = await fetch("http://127.0.0.1:8000/worker/worker_list");
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        const data = await res.json();
-        console.log("Raw workers response:", data);  
+        const data = await fetchAPI("/worker/worker_list");
+        console.log("Raw workers response:", data);
+        
         const normalized = (Array.isArray(data) ? data : []).map((w, idx) => {
           const id = w.id ?? w.pk ?? w.username ?? (w.name ? `worker-${w.name.toLowerCase().replace(/\s+/g, "-")}` : `worker-${idx}`);
-          let image = w.image || w.image_url || w.profile_image || "";
-          if (image && typeof image === "string" && !image.startsWith("http")) image = `http://127.0.0.1:8000${image.startsWith("/") ? "" : "/"}${image}`;
-          if (!image) image = "https://via.placeholder.com/400";
+          
+          // Use getImageURL helper for images
+          const image = getImageURL(w.image || w.image_url || w.profile_image) || "https://via.placeholder.com/400";
 
           const servicesArr = Array.isArray(w.services) ? w.services : [];
           const skills = servicesArr.map((s) => s.services || "Unknown");
@@ -59,7 +59,8 @@ export default function WorkersSection() {
             verified: !!w.verified,
           };
         });
-        console.log("Normalized workers:", normalized); 
+        
+        console.log("Normalized workers:", normalized);
         if (!cancelled) setWorkers(normalized);
       } catch (err) {
         console.error("Error fetching workers:", err);
@@ -74,9 +75,7 @@ export default function WorkersSection() {
   useEffect(() => {
     async function fetchProfessions() {
       try {
-        const res = await fetch("http://127.0.0.1:8000/worker/profession_list");
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        const data = await res.json();
+        const data = await fetchAPI("/worker/profession_list");
         setProfessions([{ id: "all", name: "All Services", slug: "all" }, ...data]);
       } catch (err) {
         console.error("Error fetching professions:", err);
@@ -262,4 +261,3 @@ function WorkerCard({ id, image, name, profession, experience, rating, reviews, 
     </Link>
   );
 }
-  

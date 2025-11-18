@@ -11,13 +11,15 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key secret!
-SECRET_KEY = "django-insecure-ud%zbuh!g)7b@46erswlkg!lrv$oo&kw(s07l9&@^2@j2(4**1"
+# -------------------------------------------------------------------
+# SECURITY
+# -------------------------------------------------------------------
+SECRET_KEY = config('SECRET_KEY', default="django-insecure-ud%zbuh!g)7b@46erswlkg!lrv$oo&kw(s07l9&@^2@j2(4**1")
 
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-# Allow Render & local frontend to connect
-ALLOWED_HOSTS = ["*"]
+# Allow Render & local
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,.onrender.com').split(',')
 
 # -------------------------------------------------------------------
 # INSTALLED APPS
@@ -33,6 +35,7 @@ INSTALLED_APPS = [
     "HomeApp",
     "rest_framework",
     "corsheaders",
+    "rest_framework_simplejwt",  # Add this if not already there
 ]
 
 # -------------------------------------------------------------------
@@ -40,11 +43,10 @@ INSTALLED_APPS = [
 # -------------------------------------------------------------------
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # REQUIRED for static files
-
-    "corsheaders.middleware.CorsMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # REQUIRED - Right after SecurityMiddleware
 
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",  # Before CommonMiddleware
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -52,14 +54,30 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True  # allow frontend access
+# -------------------------------------------------------------------
+# CORS SETTINGS
+# -------------------------------------------------------------------
+# For local development with React dev server
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+# In production (single domain), CORS is not needed but keeping for dev
+# If you want to allow all origins in dev:
+# CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only in debug mode
 
 ROOT_URLCONF = "HomeService.urls"
 
+# -------------------------------------------------------------------
+# TEMPLATES
+# -------------------------------------------------------------------
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [ BASE_DIR / 'templates' ],
+        "DIRS": [BASE_DIR / 'templates'],  # React index.html goes here
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -78,15 +96,16 @@ WSGI_APPLICATION = "HomeService.wsgi.application"
 # DATABASE
 # -------------------------------------------------------------------
 DATABASES = {
-    'default': dj_database_url.parse(
-        config(
+    'default': dj_database_url.config(
+        default=config(
             'DATABASE_URL',
             default='postgresql://postgres:postgres@localhost:5432/postgres'
         ),
         conn_max_age=600,
-        ssl_require=False  # Important for local build
+        conn_health_checks=True,
     )
 }
+
 # -------------------------------------------------------------------
 # PASSWORD VALIDATION
 # -------------------------------------------------------------------
@@ -98,7 +117,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # -------------------------------------------------------------------
-# INTERNATIONAL
+# INTERNATIONALIZATION
 # -------------------------------------------------------------------
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -106,23 +125,27 @@ USE_I18N = True
 USE_TZ = True
 
 # -------------------------------------------------------------------
-# STATIC FILES (IMPORTANT FOR RENDER)
+# STATIC FILES (CSS, JavaScript, Images)
 # -------------------------------------------------------------------
-STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static",]
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # Where collectstatic puts files
 
-# Whitenoise: compress & cache static files
-STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
+# React build/static files go here BEFORE collectstatic
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+
+# Use WhiteNoise for serving static files efficiently
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # -------------------------------------------------------------------
-# MEDIA
+# MEDIA FILES (User Uploads)
 # -------------------------------------------------------------------
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # -------------------------------------------------------------------
-# AUTH + JWT
+# REST FRAMEWORK & JWT
 # -------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -138,6 +161,15 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
+# -------------------------------------------------------------------
+# CUSTOM USER MODEL
+# -------------------------------------------------------------------
 AUTH_USER_MODEL = "HomeApp.CustomerUser"
+
+# -------------------------------------------------------------------
+# DEFAULT PRIMARY KEY FIELD TYPE
+# -------------------------------------------------------------------
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

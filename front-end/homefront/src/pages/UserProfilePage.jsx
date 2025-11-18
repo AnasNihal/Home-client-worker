@@ -1,7 +1,13 @@
 // src/pages/UserProfilePage.jsx
 import React, { useEffect, useState, useMemo } from "react";
-import { fetchWithAuth } from "../utlis/fetchWithAuth";
-import { PencilIcon, UserIcon, MapPinIcon, PhoneIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
+import { fetchAPI } from "../utils/api"; // use helper
+import {
+  PencilIcon,
+  UserIcon,
+  MapPinIcon,
+  PhoneIcon,
+  EnvelopeIcon,
+} from "@heroicons/react/24/outline";
 
 export default function UserProfilePage() {
   const [profile, setProfile] = useState(null);
@@ -11,12 +17,15 @@ export default function UserProfilePage() {
   const [form, setForm] = useState({});
   const [preview, setPreview] = useState(null);
 
+  /* --------------------------
+      FETCH PROFILE (LOCAL + PROD)
+  --------------------------- */
   const fetchProfile = async () => {
     try {
-      const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile");
-      if (!res || !res.ok) throw new Error("Failed to fetch profile");
-      const data = await res.json();
+      const data = await fetchAPI("/user/profile"); // helper used
+
       setProfile(data);
+
       setForm({
         first_name: data.first_name || "",
         last_name: data.last_name || "",
@@ -29,14 +38,21 @@ export default function UserProfilePage() {
         country: data.country || "",
         profileimage: null,
       });
+
       setPreview(data.profileimage_url || data.profileimage || null);
     } catch (err) {
-      setError(err.message || "Something went wrong");
+      console.error(err);
+      setError("Failed to fetch profile");
     }
   };
 
-  useEffect(() => { fetchProfile(); }, []);
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
+  /* --------------------------
+      DISPLAY NAME + INITIALS
+  --------------------------- */
   const displayName = useMemo(() => {
     if (!profile) return "User";
     return (
@@ -49,23 +65,31 @@ export default function UserProfilePage() {
   const initials = useMemo(() => {
     if (!profile) return "U";
     const first = profile.first_name?.[0] || profile.username?.[0] || "U";
-    const last = profile.last_name?.[0] || profile.username?.[1] || "";
+    const last = profile.last_name?.[0] || "";
     return (first + last).toUpperCase();
   }, [profile]);
 
+  /* --------------------------
+      HANDLE INPUT CHANGE
+  --------------------------- */
   const onChange = (e) => {
     const { name, value, files } = e.target;
+
     if (name === "profileimage") {
       const file = files?.[0] || null;
       setForm((f) => ({ ...f, profileimage: file }));
-      setPreview(file ? URL.createObjectURL(file) : profile?.profileimage || null);
+      setPreview(file ? URL.createObjectURL(file) : profile?.profileimage);
     } else {
       setForm((f) => ({ ...f, [name]: value }));
     }
   };
 
+  /* --------------------------
+      CANCEL EDIT
+  --------------------------- */
   const onCancel = () => {
     if (!profile) return;
+
     setForm({
       first_name: profile.first_name || "",
       last_name: profile.last_name || "",
@@ -78,44 +102,59 @@ export default function UserProfilePage() {
       country: profile.country || "",
       profileimage: null,
     });
+
     setPreview(profile.profileimage || null);
     setEditing(false);
   };
 
+  /* --------------------------
+      SAVE PROFILE (PUT)
+  --------------------------- */
   const onSave = async () => {
     setSaving(true);
     setError("");
+
     try {
       const data = new FormData();
+
       Object.entries(form).forEach(([key, value]) => {
-        if (key !== "profileimage" && value !== null && value !== "") {
+        if (key !== "profileimage" && value !== null) {
           data.append(key, value);
         }
       });
+
       if (form.profileimage instanceof File) {
         data.append("profileimage", form.profileimage);
       }
-      const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile/", {
+
+      const updated = await fetchAPI("/user/profile/", {
         method: "PUT",
         body: data,
       });
-      if (!res || !res.ok) throw new Error("Update failed");
-      const updated = await res.json();
+
       setProfile(updated);
       setEditing(false);
-      const newUrl = updated.profileimage_url || updated.profileimage || preview;
+
+      const newUrl =
+        updated.profileimage_url || updated.profileimage || preview;
       setPreview(newUrl ? `${newUrl}?t=${Date.now()}` : null);
     } catch (err) {
-      setError(err.message || "Failed to save changes");
+      console.error(err);
+      setError("Failed to update profile");
     } finally {
       setSaving(false);
     }
   };
 
+  /* --------------------------
+      UI - ERRORS + LOADING
+  --------------------------- */
   if (error)
     return (
       <div className="min-h-screen flex items-center justify-center bg-light_green p-4">
-        <div className="bg-white/30 rounded-2xl p-8 text-center text-green">{error}</div>
+        <div className="bg-white/30 rounded-2xl p-8 text-center text-green">
+          {error}
+        </div>
       </div>
     );
 
@@ -128,6 +167,9 @@ export default function UserProfilePage() {
       </div>
     );
 
+  /* --------------------------
+          UI SECTION
+  --------------------------- */
   return (
     <div className="min-h-screen bg-light_green p-4 sm:p-6 relative top-24">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -148,6 +190,7 @@ export default function UserProfilePage() {
                     {initials}
                   </div>
                 )}
+
                 <input
                   type="file"
                   name="profileimage"
@@ -160,9 +203,10 @@ export default function UserProfilePage() {
 
             {/* Profile Info */}
             <div className="flex-1 text-center sm:text-left">
-              <h1 className="text-3xl sm:text-4xl font-bold text-green mb-2">{displayName}</h1>
+              <h1 className="text-3xl sm:text-4xl font-bold text-green mb-2">
+                {displayName}
+              </h1>
               <p className="text-green font-medium">{profile.email}</p>
-              {/* <p className="text-green mt-2">{profile.phone || "No phone added"}</p> */}
             </div>
           </div>
 
@@ -175,16 +219,38 @@ export default function UserProfilePage() {
           </button>
         </div>
 
-        {/* Details Section */}
+        {/* Profile Details */}
         <div className="bg-green/20 rounded-3xl p-6 sm:p-8 shadow-xl relative">
           <h2 className="text-2xl font-bold text-green mb-4">Profile Details</h2>
+
           {!editing ? (
             <div className="space-y-3">
-              <DetailRow icon={<UserIcon className="h-5 w-5" />} label="Name" value={displayName} />
-              <DetailRow icon={<EnvelopeIcon className="h-5 w-5" />} label="Email" value={profile.email} />
-              <DetailRow icon={<PhoneIcon className="h-5 w-5" />} label="Phone" value={profile.phone} />
-              <DetailRow icon={<MapPinIcon className="h-5 w-5" />} label="Address" value={`${profile.address || ""}, ${profile.city || ""}, ${profile.country || ""}`} />
-              <p className="text-green/70 mt-2">{profile.bio || "No bio added"}</p>
+              <DetailRow
+                icon={<UserIcon className="h-5 w-5" />}
+                label="Name"
+                value={displayName}
+              />
+              <DetailRow
+                icon={<EnvelopeIcon className="h-5 w-5" />}
+                label="Email"
+                value={profile.email}
+              />
+              <DetailRow
+                icon={<PhoneIcon className="h-5 w-5" />}
+                label="Phone"
+                value={profile.phone}
+              />
+              <DetailRow
+                icon={<MapPinIcon className="h-5 w-5" />}
+                label="Address"
+                value={`${profile.address || ""}, ${
+                  profile.city || ""
+                }, ${profile.country || ""}`}
+              />
+
+              <p className="text-green/70 mt-2">
+                {profile.bio || "No bio added"}
+              </p>
             </div>
           ) : (
             <ProfileEditForm
@@ -202,6 +268,7 @@ export default function UserProfilePage() {
 }
 
 /* ---------------- Helper Components ---------------- */
+
 const DetailRow = ({ icon, label, value }) => (
   <div className="flex items-center gap-3 text-green">
     <div className="bg-green/10 p-2 rounded-lg">{icon}</div>
@@ -259,11 +326,21 @@ const ProfileEditForm = ({ form, onChange, onCancel, onSave, saving }) => (
       placeholder="Bio"
       className="w-full px-4 py-2 border rounded-lg"
     />
+
     <div className="flex justify-end gap-3">
-      <button type="button" onClick={onCancel} className="px-4 py-2 bg-green/20 rounded-lg">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="px-4 py-2 bg-green/20 rounded-lg"
+      >
         Cancel
       </button>
-      <button type="submit" disabled={saving} className="px-4 py-2 bg-yellow text-green rounded-lg">
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="px-4 py-2 bg-yellow text-green rounded-lg"
+      >
         {saving ? "Saving..." : "Save"}
       </button>
     </div>

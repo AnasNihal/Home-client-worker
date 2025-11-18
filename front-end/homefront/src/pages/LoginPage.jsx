@@ -2,42 +2,46 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+// Import API helper functions
+import { postAPI } from "../utils/api";
+
 export default function Login() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     username: "",
-    password: ""
+    password: "",
   });
+
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
+  // Handle Input
   const handleChange = (e) => {
     const { name, value } = e.target;
+
     setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
 
-    // Clear error when user starts typing
+    // Clear individual error when typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
+  // Validate Form
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.username) {
-      newErrors.username = "Username is required";
-    }
-    if (!formData.password) {
-      newErrors.password = "Password is required";
-    }
+    if (!formData.username) newErrors.username = "Username is required";
+    if (!formData.password) newErrors.password = "Password is required";
 
     return newErrors;
   };
 
+  // HANDLE LOGIN
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -51,43 +55,36 @@ export default function Login() {
     setErrors({});
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: formData.username,
-          password: formData.password
-        })
+      // Use helper function for POST request
+      const data = await postAPI("/auth/login", {
+        username: formData.username,
+        password: formData.password,
       });
 
-      const data = await response.json();
+      // Save tokens
+      localStorage.setItem("access", data.access);
+      localStorage.setItem("refresh", data.refresh);
 
-      if (response.ok) {
-        // ✅ Save tokens and user info in localStorage
-        localStorage.setItem("access", data.access);
-        localStorage.setItem("refresh", data.refresh);
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            username: data.username,
-            role: data.role
-          })
-        );
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          username: data.username,
+          role: data.role,
+        })
+      );
 
-        // ✅ Redirect based on role
-        if (data.role === "worker") {
-          navigate("/worker/dashboard");
-        } else if (data.role === "user") {
-          navigate("/profile/me");
-        } else {
-          navigate("/");
-        }
+      // Role-based redirect
+      if (data.role === "worker") {
+        navigate("/worker/dashboard");
+      } else if (data.role === "user") {
+        navigate("/profile/me");
       } else {
-        setErrors({ submit: data.detail || data.message || "Login failed" });
+        navigate("/");
       }
-    } catch (error) {
-      console.error("Network error:", error);
-      setErrors({ submit: "Network error, please try again." });
+    } catch (err) {
+      setErrors({
+        submit: err.message || "Login failed. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -101,16 +98,14 @@ export default function Login() {
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Error Message */}
+          {/* Submit Errors */}
           {errors.submit && (
             <div className="rounded-lg bg-red-50 border border-red-200 p-3">
-              <p className="text-sm text-red-600 text-center">
-                {errors.submit}
-              </p>
+              <p className="text-sm text-red-600 text-center">{errors.submit}</p>
             </div>
           )}
 
-          {/* Username Field */}
+          {/* Username */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Username
@@ -132,7 +127,7 @@ export default function Login() {
             )}
           </div>
 
-          {/* Password Field */}
+          {/* Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Password
@@ -154,13 +149,13 @@ export default function Login() {
             )}
           </div>
 
-          {/* Remember Me & Forgot Password */}
+          {/* Remember + Forgot */}
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <input
                 type="checkbox"
                 id="remember"
-                className="h-4 w-4 text-yellow-500 focus:ring-yellow-500 border-gray-300 rounded"
+                className="h-4 w-4 text-yellow-500 border-gray-300 rounded"
               />
               <label
                 htmlFor="remember"
@@ -177,11 +172,11 @@ export default function Login() {
             </Link>
           </div>
 
-          {/* Login Button */}
+          {/* Submit */}
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full rounded-xl bg-gradient-to-r from-yellow-400 bg-yellow to-yellow-500 py-3 px-4 font-semibold text-[#0b2e28] transition-all duration-300 hover:from-yellow-500 hover:to-yellow-600 hover:shadow-lg hover:shadow-yellow-400/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+            className="w-full rounded-xl bg-gradient-to-r from-yellow-400 to-yellow-500 py-3 px-4 font-semibold text-[#0b2e28] transition-all duration-300 hover:from-yellow-500 hover:to-yellow-600 hover:shadow-lg hover:shadow-yellow-400/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
           >
             {isLoading ? "Signing in..." : "Sign In"}
           </button>
@@ -192,7 +187,7 @@ export default function Login() {
           Don't have an account?{" "}
           <Link
             to="/register"
-            className="font-semibold text-yellow-600 hover:text-yellow-700 hover:underline transition-colors"
+            className="font-semibold text-yellow-600 hover:text-yellow-700 hover:underline"
           >
             Create Account
           </Link>
