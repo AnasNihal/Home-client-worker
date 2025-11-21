@@ -17,10 +17,21 @@ from .serializers  import (
     BookingSerializer
     )
 from rest_framework import status
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 from .models import Profession, UserProfile, Worker, WorkerService,WorkerRating ,Booking
 from django.core.mail import send_mail
 
+
+
+User = get_user_model()
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def ping(request):
+    """
+    Simple endpoint just to wake up the DB / server.
+    """
+    return Response({"status": "ok"})
 
 
 @api_view(['POST'])
@@ -28,7 +39,11 @@ from django.core.mail import send_mail
 def login(request):
     username = request.data.get('username')
     password = request.data.get('password')
-    user = authenticate(username=username, password=password)
+
+    print("Trying to login with:", username)
+
+    user = authenticate(request, username=username, password=password)
+
 
     if not user:
         return Response({"detail": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -77,8 +92,9 @@ def user_profile(request):
     elif request.method == 'PUT':
         serializer = UserProfileSerializer(profile, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
-            instance = serializer.save()
+            serializer.save()
             return Response(serializer.data)
+        print("USER PROFILE UPDATE ERROR:", serializer.errors) 
         return Response(serializer.errors, status=400)
 
     

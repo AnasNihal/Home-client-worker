@@ -1,6 +1,6 @@
 // src/pages/UserProfilePage.jsx
 import React, { useEffect, useState, useMemo } from "react";
-import { fetchAPI } from "../utils/api"; // use helper
+import { fetchAPI, uploadAPI  } from "../utils/api"; // use helper
 import {
   PencilIcon,
   UserIcon,
@@ -110,41 +110,53 @@ export default function UserProfilePage() {
   /* --------------------------
       SAVE PROFILE (PUT)
   --------------------------- */
-  const onSave = async () => {
-    setSaving(true);
-    setError("");
+const onSave = async () => {
+  setSaving(true);
+  setError("");
 
-    try {
-      const data = new FormData();
+    // ✅ Fix phone format before sending (very important)
+  if (form.phone) {
+    let cleaned = form.phone.replace(/\s+/g, "");
 
-      Object.entries(form).forEach(([key, value]) => {
-        if (key !== "profileimage" && value !== null) {
-          data.append(key, value);
-        }
-      });
-
-      if (form.profileimage instanceof File) {
-        data.append("profileimage", form.profileimage);
-      }
-
-      const updated = await fetchAPI("/user/profile/", {
-        method: "PUT",
-        body: data,
-      });
-
-      setProfile(updated);
-      setEditing(false);
-
-      const newUrl =
-        updated.profileimage_url || updated.profileimage || preview;
-      setPreview(newUrl ? `${newUrl}?t=${Date.now()}` : null);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to update profile");
-    } finally {
-      setSaving(false);
+    if (!cleaned.startsWith("+")) {
+      cleaned = "+91" + cleaned;
     }
-  };
+
+    form.phone = cleaned;
+  }
+
+
+  try {
+    const data = new FormData();
+
+    Object.entries(form).forEach(([key, value]) => {
+      if (key !== "profileimage" && value !== null && value !== "") {
+        data.append(key, value);
+      }
+    });
+
+
+    if (form.profileimage instanceof File) {
+      data.append("profileimage", form.profileimage);
+    }
+
+    // ⬇️ USE uploadAPI, NOT fetchAPI
+    const updated = await uploadAPI("/user/profile/", data, "PUT");
+
+    setProfile(updated);
+    setEditing(false);
+
+    const newUrl =
+      updated.profileimage_url || updated.profileimage || preview;
+    setPreview(newUrl ? `${newUrl}?t=${Date.now()}` : null);
+  } catch (err) {
+    console.error(err);
+    setError("Failed to update profile");
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   /* --------------------------
       UI - ERRORS + LOADING

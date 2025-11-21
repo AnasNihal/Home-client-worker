@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 // Import API helper functions
-import { postAPI } from "../utils/api";
+import { postAPI, fetchAPI } from "../utils/api";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -56,7 +56,7 @@ export default function Login() {
 
     try {
       // Use helper function for POST request
-      const data = await postAPI("/auth/login", {
+      const data = await postAPI("/auth/login/", {
         username: formData.username,
         password: formData.password,
       });
@@ -64,6 +64,7 @@ export default function Login() {
       // Save tokens
       localStorage.setItem("access", data.access);
       localStorage.setItem("refresh", data.refresh);
+      localStorage.setItem("role", data.role);
 
       localStorage.setItem(
         "user",
@@ -72,6 +73,22 @@ export default function Login() {
           role: data.role,
         })
       );
+      
+       if (data.role === "user") {
+      try {
+        const profile = await fetchAPI("/user/profile/");
+        localStorage.setItem("user_profile", JSON.stringify(profile));
+      } catch (err) {
+        console.warn("Failed to prefetch user profile:", err.message);
+      }
+    } else if (data.role === "worker") {
+      try {
+        const dashboard = await fetchAPI("/worker/dashboard/");
+        localStorage.setItem("worker_dashboard", JSON.stringify(dashboard));
+      } catch (err) {
+        console.warn("Failed to prefetch worker dashboard:", err.message);
+      }
+    }
 
       // Role-based redirect
       if (data.role === "worker") {

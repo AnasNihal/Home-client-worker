@@ -62,6 +62,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -77,7 +82,8 @@ ROOT_URLCONF = "HomeService.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / 'templates'],  # React index.html goes here
+        "DIRS": [],  # React index.html goes here
+        # "DIRS": [BASE_DIR / 'templates']
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -95,6 +101,7 @@ WSGI_APPLICATION = "HomeService.wsgi.application"
 # -------------------------------------------------------------------
 # DATABASE
 # -------------------------------------------------------------------
+CONN_MAX_AGE = 600 
 DATABASES = {
     'default': dj_database_url.config(
         default=config(

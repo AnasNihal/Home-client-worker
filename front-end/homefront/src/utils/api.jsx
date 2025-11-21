@@ -7,7 +7,7 @@
 const getBaseURL = () => {
   // If running React dev server on localhost:3000
   if (window.location.port === '3000') {
-    return 'http://127.0.0.1:8000';
+    return 'http://127.0.0.1:8000/api';
   }
   
   // If running from Django (localhost:8000 or production)
@@ -17,16 +17,44 @@ const getBaseURL = () => {
 export const API_BASE_URL = getBaseURL();
 
 /**
- * Fetch with authentication
+ * Get CSRF token from cookie
+ */
+const getCookie = (name) => {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+};
+
+/**
+ * Fetch with authentication (for JSON data)
  */
 export const fetchAPI = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('access');
+
+  console.log("FINAL URL:", `${API_BASE_URL}${endpoint}`);
+  
+  const token = endpoint.includes('/auth/login')
+    ? null
+    : localStorage.getItem('access');
+
+  const csrfToken = getCookie('csrftoken');
+
   
   const defaultOptions = {
     headers: {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
+      ...(csrfToken && { 'X-CSRFToken': csrfToken }),
     },
+    credentials: 'include', // Important for CORS with credentials
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -39,7 +67,36 @@ export const fetchAPI = async (endpoint, options = {}) => {
   });
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || errorData.message || `API error: ${response.status}`);
+  }
+
+  return response.json();
+};
+
+/**
+ * Upload files with FormData (for file uploads)
+ */
+export const uploadAPI = async (endpoint, formData, method = 'PUT') => {
+  const token = localStorage.getItem('access');
+  const csrfToken = getCookie('csrftoken');
+  
+  const headers = {
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(csrfToken && { 'X-CSRFToken': csrfToken }),
+    // Don't set Content-Type - browser will set it automatically with boundary
+  };
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method,
+    headers,
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || errorData.message || `Upload error: ${response.status}`);
   }
 
   return response.json();
@@ -65,7 +122,7 @@ export const postAPI = async (endpoint, data) => {
 };
 
 /**
- * PUT request
+ * PUT request (for JSON data)
  */
 export const putAPI = async (endpoint, data) => {
   return fetchAPI(endpoint, {

@@ -1,4 +1,5 @@
-  import React from 'react';
+  import React, { useEffect } from 'react';
+  import { fetchAPI } from "./utils/api";
   import { BrowserRouter , Routes, Route , useLocation} from 'react-router-dom';
   import ScrollToTop from "./ScrollToTop"; 
   import PrivateRoute from './utils/PrivateRoute';
@@ -18,9 +19,18 @@
   import UserBookingsPage from './pages/UserBookingDetailsPage';
 
 
+
 function App() {
   const location = useLocation();
   const hideLayout = ["/login", "/register"].includes(location.pathname);
+
+    useEffect(() => {
+    // Wake up Neon / backend as soon as app loads
+    fetchAPI("/ping/").catch(() => {
+      console.log("Backend warm-up done");
+    });
+  }, []);
+  
 
   return (
     <>

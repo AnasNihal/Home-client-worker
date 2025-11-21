@@ -25,7 +25,7 @@ export default function BookingPage() {
     // Fetch worker details
     const loadWorkerDetails = async () => {
       try {
-        const data = await fetchAPI(`/api/worker/worker_details/${workerId}`);
+        const data = await fetchAPI(`/worker/worker_details/${workerId}`);
         setWorker(data);
         setServices(data.services);
       } catch (err) {

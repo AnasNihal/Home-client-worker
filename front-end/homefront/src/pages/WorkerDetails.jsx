@@ -159,7 +159,7 @@ export default function WorkerDetails() {
 
             {/* STATS */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-              <StatCard title="Rating" value={worker.rating || "4.5"} />
+              <StatCard title="Rating" value={worker.ratings?.average_rating || "0"} />
               <StatCard
                 title="Reviews"
                 value={worker.ratings?.total_ratings || "0"}
@@ -180,7 +180,7 @@ export default function WorkerDetails() {
               }}
             >
               <div className="w-2 h-2 rounded-full bg-current animate-pulse" />
-              {worker.availability || "Availability Unknown"}
+              {worker.availability || "Available"}
             </span>
           </div>
         </div>
