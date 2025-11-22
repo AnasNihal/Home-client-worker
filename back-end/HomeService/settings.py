@@ -58,15 +58,20 @@ MIDDLEWARE = [
 # CORS SETTINGS
 # -------------------------------------------------------------------
 # For local development with React dev server
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+#     "http://127.0.0.1:3000",
+# ]
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_USE_SESSIONS = False
 
+# Update CSRF_TRUSTED_ORIGINS to include your production domain
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "https://your-render-domain.onrender.com",  # Add your actual domain
+]
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -82,8 +87,7 @@ ROOT_URLCONF = "HomeService.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],  # React index.html goes here
-        # "DIRS": [BASE_DIR / 'templates']
+        "DIRS": [BASE_DIR / 'templates'],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -180,3 +184,4 @@ AUTH_USER_MODEL = "HomeApp.CustomerUser"
 # DEFAULT PRIMARY KEY FIELD TYPE
 # -------------------------------------------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+

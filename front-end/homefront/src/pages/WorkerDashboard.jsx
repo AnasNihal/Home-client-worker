@@ -1,5 +1,3 @@
-// src/pages/WorkerDashboard.jsx
-import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   UserIcon,
   PlusIcon,
@@ -16,12 +14,15 @@ import {
   putAPI,
   deleteAPI,
   getImageURL,
-} from "../utils/api"; // using helper API
+} from "../utils/api";
+// src/pages/WorkerDashboard.jsx
+import React, { useState, useEffect, useCallback, useRef } from "react";
+
 
 /* -----------------------------------------------------------
    MAIN COMPONENT
 ------------------------------------------------------------ */
-const WorkerDashboard = () => {
+  const WorkerDashboard = () => {
   const [workerData, setWorkerData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
@@ -29,15 +30,28 @@ const WorkerDashboard = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [error, setError] = useState("");
 
-  /* ----------------- LOAD WORKER DATA ------------------- */
+  /* ✅ OPTIMIZED: Load from cache first */
   const loadWorkerData = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await fetchAPI("/worker/dashboard");
-      setWorkerData(data);
+
+      // Step 1: Load cached data instantly
+      const cached = localStorage.getItem("worker_dashboard");
+      if (cached) {
+        const data = JSON.parse(cached);
+        setWorkerData(data);
+        setLoading(false);
+      }
+
+      // Step 2: Refresh in background
+      const fresh = await fetchAPI("/worker/dashboard/");
+      setWorkerData(fresh);
+      localStorage.setItem("worker_dashboard", JSON.stringify(fresh));
     } catch (err) {
       console.error(err);
-      setError("Failed to load dashboard data.");
+      if (!workerData) {
+        setError("Failed to load dashboard data.");
+      }
     } finally {
       setLoading(false);
     }
@@ -84,8 +98,9 @@ const WorkerDashboard = () => {
   /* ----------------- UPDATE WORKER PROFILE ------------------- */
   const handleProfileSave = async (profileData) => {
     try {
-      const updated = await putAPI("/worker/dashboard", profileData);
+      const updated = await putAPI("/worker/dashboard/", profileData);
       setWorkerData(updated);
+      localStorage.setItem("worker_dashboard", JSON.stringify(updated));
       setIsProfileModalOpen(false);
       alert("Profile updated successfully!");
     } catch (err) {
@@ -94,8 +109,8 @@ const WorkerDashboard = () => {
     }
   };
 
-  if (loading) return <LoadingSpinner />;
-  if (error) return <ErrorMessage message={error} onRetry={loadWorkerData} />;
+  if (loading && !workerData) return <LoadingSpinner />;
+  if (error && !workerData) return <ErrorMessage message={error} onRetry={loadWorkerData} />;
 
   return (
     <div className="min-h-screen bg-light_green p-4 sm:p-6 relative top-24">
@@ -184,12 +199,13 @@ const ProfileHeader = ({ workerData, setWorkerData }) => {
     try {
       setUploading(true);
 
-      const updated = await fetchAPI("/worker/dashboard", {
+      const updated = await fetchAPI("/worker/dashboard/", {
         method: "PUT",
         body: formData,
       });
 
       setWorkerData(updated);
+      localStorage.setItem("worker_dashboard", JSON.stringify(updated));
     } catch (err) {
       console.error(err);
       alert("Failed to upload image");
@@ -212,7 +228,7 @@ const ProfileHeader = ({ workerData, setWorkerData }) => {
           {workerData?.image ? (
             <img
               src={getImageURL(workerData.image)}
-              className="w-32 h-32 rounded-full shadow-lg cursor-pointer"
+              className="w-32 h-32 rounded-full shadow-lg cursor-pointer object-cover"
               onClick={() => fileInputRef.current?.click()}
               alt="Worker"
             />
@@ -239,11 +255,11 @@ const ProfileHeader = ({ workerData, setWorkerData }) => {
         </div>
 
         <div className="text-center sm:text-left flex-1">
-          <h1 className="text-3xl font-bold text-green">{workerData.name}</h1>
+          <h1 className="text-3xl font-bold text-green">{workerData?.name || "Worker"}</h1>
           <p className="text-yellow mt-1">
             {workerData?.profession?.name || "Worker"}
           </p>
-          <p className="text-green mt-2">{workerData.email}</p>
+          <p className="text-green mt-2">{workerData?.email || ""}</p>
         </div>
       </div>
     </div>
@@ -255,19 +271,19 @@ const ProfileDetails = ({ workerData, onEdit }) => (
   <div className="bg-green/20 p-6 rounded-3xl shadow-xl relative">
     <h2 className="text-2xl font-bold text-green mb-4">Profile Details</h2>
 
-    <DetailRow icon={<UserIcon />} label="Name" value={workerData.name} />
+    <DetailRow icon={<UserIcon className="h-5 w-5" />} label="Name" value={workerData?.name} />
     <DetailRow
-      icon={<BriefcaseIcon />}
+      icon={<BriefcaseIcon className="h-5 w-5" />}
       label="Profession"
-      value={workerData.profession?.name}
+      value={workerData?.profession?.name}
     />
     <DetailRow
-      icon={<MapPinIcon />}
+      icon={<MapPinIcon className="h-5 w-5" />}
       label="Location"
-      value={workerData.location}
+      value={workerData?.location}
     />
-    <DetailRow icon={<PhoneIcon />} label="Phone" value={workerData.phone} />
-    <DetailRow icon={<EnvelopeIcon />} label="Email" value={workerData.email} />
+    <DetailRow icon={<PhoneIcon className="h-5 w-5" />} label="Phone" value={workerData?.phone} />
+    <DetailRow icon={<EnvelopeIcon className="h-5 w-5" />} label="Email" value={workerData?.email} />
 
     <button
       onClick={onEdit}
@@ -419,20 +435,30 @@ const ServiceModal = ({ service, onClose, onSave }) => {
 
 /* ----------------- PROFILE EDIT MODAL ------------------- */
 const ProfileEditModal = ({ workerData, onClose, onSave }) => {
-  const [name, setName] = useState(workerData.name);
-  const [phone, setPhone] = useState(workerData.phone);
-  const [email, setEmail] = useState(workerData.email);
-  const [location, setLocation] = useState(workerData.location);
-  const [experience, setExperience] = useState(workerData.experience);
-  const [bio, setBio] = useState(workerData.bio);
+  const [name, setName] = useState(workerData?.name || "");
+  const [phone, setPhone] = useState(workerData?.phone || "");
+  const [email, setEmail] = useState(workerData?.email || "");
+  const [location, setLocation] = useState(workerData?.location || "");
+  const [experience, setExperience] = useState(workerData?.experience || "");
+  const [bio, setBio] = useState(workerData?.bio || "");
   const [professionId, setProfessionId] = useState(
-    workerData.profession?.id || ""
+    workerData?.profession?.id || ""
   );
   const [professions, setProfessions] = useState([]);
 
   useEffect(() => {
+    // ✅ Load professions from cache first
+    const cached = localStorage.getItem("professions_cache");
+    if (cached) {
+      setProfessions(JSON.parse(cached));
+    }
+
+    // Refresh in background
     fetchAPI("/worker/profession_list")
-      .then((data) => setProfessions(data))
+      .then((data) => {
+        setProfessions(data);
+        localStorage.setItem("professions_cache", JSON.stringify(data));
+      })
       .catch((err) => console.error(err));
   }, []);
 
@@ -450,8 +476,8 @@ const ProfileEditModal = ({ workerData, onClose, onSave }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 overflow-y-auto">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md my-8">
         <h2 className="text-xl font-bold mb-4">Edit Profile</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">

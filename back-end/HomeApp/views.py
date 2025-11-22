@@ -20,6 +20,7 @@ from rest_framework import status
 from django.contrib.auth import authenticate, get_user_model
 from .models import Profession, UserProfile, Worker, WorkerService,WorkerRating ,Booking
 from django.core.mail import send_mail
+from django.views.decorators.csrf import csrf_exempt
 
 
 
@@ -34,6 +35,7 @@ def ping(request):
     return Response({"status": "ok"})
 
 
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login(request):

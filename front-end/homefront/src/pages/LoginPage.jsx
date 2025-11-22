@@ -1,8 +1,6 @@
 // src/pages/Login.jsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
-// Import API helper functions
 import { postAPI, fetchAPI } from "../utils/api";
 
 export default function Login() {
@@ -16,32 +14,22 @@ export default function Login() {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
-  // Handle Input
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    // Clear individual error when typing
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
-  // Validate Form
   const validateForm = () => {
     const newErrors = {};
-
     if (!formData.username) newErrors.username = "Username is required";
     if (!formData.password) newErrors.password = "Password is required";
-
     return newErrors;
   };
 
-  // HANDLE LOGIN
+  // ✅ OPTIMIZED LOGIN WITH PARALLEL LOADING
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -55,17 +43,16 @@ export default function Login() {
     setErrors({});
 
     try {
-      // Use helper function for POST request
+      // Step 1: Login
       const data = await postAPI("/auth/login/", {
         username: formData.username,
         password: formData.password,
       });
 
-      // Save tokens
+      // Step 2: Save tokens IMMEDIATELY (needed for next requests)
       localStorage.setItem("access", data.access);
       localStorage.setItem("refresh", data.refresh);
       localStorage.setItem("role", data.role);
-
       localStorage.setItem(
         "user",
         JSON.stringify({
@@ -73,31 +60,50 @@ export default function Login() {
           role: data.role,
         })
       );
-      
-       if (data.role === "user") {
-      try {
-        const profile = await fetchAPI("/user/profile/");
-        localStorage.setItem("user_profile", JSON.stringify(profile));
-      } catch (err) {
-        console.warn("Failed to prefetch user profile:", err.message);
-      }
-    } else if (data.role === "worker") {
-      try {
-        const dashboard = await fetchAPI("/worker/dashboard/");
-        localStorage.setItem("worker_dashboard", JSON.stringify(dashboard));
-      } catch (err) {
-        console.warn("Failed to prefetch worker dashboard:", err.message);
-      }
-    }
 
-      // Role-based redirect
-      if (data.role === "worker") {
-        navigate("/worker/dashboard");
-      } else if (data.role === "user") {
+      // Step 3: Fetch ALL data in PARALLEL (much faster!)
+      if (data.role === "user") {
+        try {
+          // ✅ Parallel fetch: profile, workers, professions
+          const [profile, workers, professions] = await Promise.all([
+            fetchAPI("/user/profile/"),
+            fetchAPI("/worker/worker_list"),
+            fetchAPI("/worker/profession_list"),
+          ]);
+
+          localStorage.setItem("user_profile", JSON.stringify(profile));
+          localStorage.setItem("workers_cache", JSON.stringify(workers));
+          localStorage.setItem("professions_cache", JSON.stringify(professions));
+
+          console.log("✅ User data preloaded");
+        } catch (err) {
+          console.warn("Failed to prefetch user data:", err.message);
+        }
+
         navigate("/profile/me");
+
+      } else if (data.role === "worker") {
+        try {
+          // ✅ Parallel fetch: dashboard, professions
+          const [dashboard, professions] = await Promise.all([
+            fetchAPI("/worker/dashboard/"),
+            fetchAPI("/worker/profession_list"),
+          ]);
+
+          localStorage.setItem("worker_dashboard", JSON.stringify(dashboard));
+          localStorage.setItem("professions_cache", JSON.stringify(professions));
+
+          console.log("✅ Worker data preloaded");
+        } catch (err) {
+          console.warn("Failed to prefetch worker data:", err.message);
+        }
+
+        navigate("/worker/dashboard");
+
       } else {
         navigate("/");
       }
+
     } catch (err) {
       setErrors({
         submit: err.message || "Login failed. Please try again.",
@@ -115,14 +121,12 @@ export default function Login() {
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Submit Errors */}
           {errors.submit && (
             <div className="rounded-lg bg-red-50 border border-red-200 p-3">
               <p className="text-sm text-red-600 text-center">{errors.submit}</p>
             </div>
           )}
 
-          {/* Username */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Username
@@ -144,7 +148,6 @@ export default function Login() {
             )}
           </div>
 
-          {/* Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Password
@@ -166,7 +169,6 @@ export default function Login() {
             )}
           </div>
 
-          {/* Remember + Forgot */}
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <input
@@ -189,7 +191,6 @@ export default function Login() {
             </Link>
           </div>
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={isLoading}
@@ -199,7 +200,6 @@ export default function Login() {
           </button>
         </form>
 
-        {/* Register Link */}
         <p className="mt-6 text-center text-sm text-gray-600">
           Don't have an account?{" "}
           <Link

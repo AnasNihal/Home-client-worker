@@ -31,6 +31,8 @@ export default function WorkerDetails() {
       try {
         setLoading(true);
 
+        await fetchAPI('/ping');
+
         const data = await fetchAPI(`/worker/worker_details/${workerId}`);
 
         const profession =

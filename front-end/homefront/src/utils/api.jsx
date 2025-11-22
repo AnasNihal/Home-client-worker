@@ -11,7 +11,7 @@ const getBaseURL = () => {
   }
   
   // If running from Django (localhost:8000 or production)
-  return '';
+  return '/api';  // ← Changed from '' to '/api'
 };
 
 export const API_BASE_URL = getBaseURL();
@@ -38,7 +38,6 @@ const getCookie = (name) => {
  * Fetch with authentication (for JSON data)
  */
 export const fetchAPI = async (endpoint, options = {}) => {
-
   console.log("FINAL URL:", `${API_BASE_URL}${endpoint}`);
   
   const token = endpoint.includes('/auth/login')
@@ -46,7 +45,6 @@ export const fetchAPI = async (endpoint, options = {}) => {
     : localStorage.getItem('access');
 
   const csrfToken = getCookie('csrftoken');
-
   
   const defaultOptions = {
     headers: {
@@ -54,7 +52,7 @@ export const fetchAPI = async (endpoint, options = {}) => {
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(csrfToken && { 'X-CSRFToken': csrfToken }),
     },
-    credentials: 'include', // Important for CORS with credentials
+    credentials: 'include',
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -84,7 +82,6 @@ export const uploadAPI = async (endpoint, formData, method = 'PUT') => {
   const headers = {
     ...(token && { Authorization: `Bearer ${token}` }),
     ...(csrfToken && { 'X-CSRFToken': csrfToken }),
-    // Don't set Content-Type - browser will set it automatically with boundary
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -108,7 +105,17 @@ export const uploadAPI = async (endpoint, formData, method = 'PUT') => {
 export const getImageURL = (imagePath) => {
   if (!imagePath) return '';
   if (imagePath.startsWith('http')) return imagePath;
-  return `${API_BASE_URL}${imagePath}`;
+  
+  // Handle media files
+  if (imagePath.startsWith('/media')) return imagePath;
+  
+  // If running from Django server
+  if (window.location.port !== '3000') {
+    return imagePath; // Already has full path
+  }
+  
+  // If running from React dev server
+  return `http://127.0.0.1:8000${imagePath}`;
 };
 
 /**

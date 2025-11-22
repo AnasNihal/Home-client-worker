@@ -1,6 +1,6 @@
 // src/pages/UserProfilePage.jsx
 import React, { useEffect, useState, useMemo } from "react";
-import { fetchAPI, uploadAPI  } from "../utils/api"; // use helper
+import { fetchAPI, uploadAPI } from "../utils/api";
 import {
   PencilIcon,
   UserIcon,
@@ -17,32 +17,52 @@ export default function UserProfilePage() {
   const [form, setForm] = useState({});
   const [preview, setPreview] = useState(null);
 
-  /* --------------------------
-      FETCH PROFILE (LOCAL + PROD)
-  --------------------------- */
+  /* ✅ OPTIMIZED: Load from cache first, then refresh */
   const fetchProfile = async () => {
     try {
-      const data = await fetchAPI("/user/profile"); // helper used
+      // Step 1: Try cache first (instant load)
+      const cached = localStorage.getItem("user_profile");
+      if (cached) {
+        const data = JSON.parse(cached);
+        setProfile(data);
+        setForm({
+          first_name: data.first_name || "",
+          last_name: data.last_name || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          bio: data.bio || "",
+          address: data.address || "",
+          city: data.city || "",
+          postal_code: data.postal_code || "",
+          country: data.country || "",
+          profileimage: null,
+        });
+        setPreview(data.profileimage_url || data.profileimage || null);
+      }
 
-      setProfile(data);
+      // Step 2: Refresh in background
+      const fresh = await fetchAPI("/user/profile/");
+      setProfile(fresh);
+      localStorage.setItem("user_profile", JSON.stringify(fresh));
 
       setForm({
-        first_name: data.first_name || "",
-        last_name: data.last_name || "",
-        email: data.email || "",
-        phone: data.phone || "",
-        bio: data.bio || "",
-        address: data.address || "",
-        city: data.city || "",
-        postal_code: data.postal_code || "",
-        country: data.country || "",
+        first_name: fresh.first_name || "",
+        last_name: fresh.last_name || "",
+        email: fresh.email || "",
+        phone: fresh.phone || "",
+        bio: fresh.bio || "",
+        address: fresh.address || "",
+        city: fresh.city || "",
+        postal_code: fresh.postal_code || "",
+        country: fresh.country || "",
         profileimage: null,
       });
-
-      setPreview(data.profileimage_url || data.profileimage || null);
+      setPreview(fresh.profileimage_url || fresh.profileimage || null);
     } catch (err) {
       console.error(err);
-      setError("Failed to fetch profile");
+      if (!profile) {
+        setError("Failed to fetch profile");
+      }
     }
   };
 
@@ -50,9 +70,6 @@ export default function UserProfilePage() {
     fetchProfile();
   }, []);
 
-  /* --------------------------
-      DISPLAY NAME + INITIALS
-  --------------------------- */
   const displayName = useMemo(() => {
     if (!profile) return "User";
     return (
@@ -69,9 +86,6 @@ export default function UserProfilePage() {
     return (first + last).toUpperCase();
   }, [profile]);
 
-  /* --------------------------
-      HANDLE INPUT CHANGE
-  --------------------------- */
   const onChange = (e) => {
     const { name, value, files } = e.target;
 
@@ -84,9 +98,6 @@ export default function UserProfilePage() {
     }
   };
 
-  /* --------------------------
-      CANCEL EDIT
-  --------------------------- */
   const onCancel = () => {
     if (!profile) return;
 
@@ -107,61 +118,50 @@ export default function UserProfilePage() {
     setEditing(false);
   };
 
-  /* --------------------------
-      SAVE PROFILE (PUT)
-  --------------------------- */
-const onSave = async () => {
-  setSaving(true);
-  setError("");
+  const onSave = async () => {
+    setSaving(true);
+    setError("");
 
-    // ✅ Fix phone format before sending (very important)
-  if (form.phone) {
-    let cleaned = form.phone.replace(/\s+/g, "");
-
-    if (!cleaned.startsWith("+")) {
-      cleaned = "+91" + cleaned;
-    }
-
-    form.phone = cleaned;
-  }
-
-
-  try {
-    const data = new FormData();
-
-    Object.entries(form).forEach(([key, value]) => {
-      if (key !== "profileimage" && value !== null && value !== "") {
-        data.append(key, value);
+    if (form.phone) {
+      let cleaned = form.phone.replace(/\s+/g, "");
+      if (!cleaned.startsWith("+")) {
+        cleaned = "+91" + cleaned;
       }
-    });
-
-
-    if (form.profileimage instanceof File) {
-      data.append("profileimage", form.profileimage);
+      form.phone = cleaned;
     }
 
-    // ⬇️ USE uploadAPI, NOT fetchAPI
-    const updated = await uploadAPI("/user/profile/", data, "PUT");
+    try {
+      const data = new FormData();
 
-    setProfile(updated);
-    setEditing(false);
+      Object.entries(form).forEach(([key, value]) => {
+        if (key !== "profileimage" && value !== null && value !== "") {
+          data.append(key, value);
+        }
+      });
 
-    const newUrl =
-      updated.profileimage_url || updated.profileimage || preview;
-    setPreview(newUrl ? `${newUrl}?t=${Date.now()}` : null);
-  } catch (err) {
-    console.error(err);
-    setError("Failed to update profile");
-  } finally {
-    setSaving(false);
-  }
-};
+      if (form.profileimage instanceof File) {
+        data.append("profileimage", form.profileimage);
+      }
 
+      const updated = await uploadAPI("/user/profile/", data, "PUT");
 
-  /* --------------------------
-      UI - ERRORS + LOADING
-  --------------------------- */
-  if (error)
+      setProfile(updated);
+      setEditing(false);
+
+      // ✅ Update cache
+      localStorage.setItem("user_profile", JSON.stringify(updated));
+
+      const newUrl = updated.profileimage_url || updated.profileimage || preview;
+      setPreview(newUrl ? `${newUrl}?t=${Date.now()}` : null);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (error && !profile)
     return (
       <div className="min-h-screen flex items-center justify-center bg-light_green p-4">
         <div className="bg-white/30 rounded-2xl p-8 text-center text-green">
@@ -179,16 +179,11 @@ const onSave = async () => {
       </div>
     );
 
-  /* --------------------------
-          UI SECTION
-  --------------------------- */
   return (
     <div className="min-h-screen bg-light_green p-4 sm:p-6 relative top-24">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Profile Card */}
         <div className="bg-green/20 rounded-3xl p-6 sm:p-8 shadow-xl relative">
           <div className="flex flex-col sm:flex-row items-center gap-6">
-            {/* Profile Image */}
             <div className="relative">
               <label className="cursor-pointer">
                 {preview ? (
@@ -213,7 +208,6 @@ const onSave = async () => {
               </label>
             </div>
 
-            {/* Profile Info */}
             <div className="flex-1 text-center sm:text-left">
               <h1 className="text-3xl sm:text-4xl font-bold text-green mb-2">
                 {displayName}
@@ -222,7 +216,6 @@ const onSave = async () => {
             </div>
           </div>
 
-          {/* Edit Button */}
           <button
             onClick={() => setEditing(true)}
             className="absolute top-4 right-4 flex items-center gap-1 bg-yellow px-3 py-1 rounded-xl text-green hover:bg-yellow/90"
@@ -231,7 +224,6 @@ const onSave = async () => {
           </button>
         </div>
 
-        {/* Profile Details */}
         <div className="bg-green/20 rounded-3xl p-6 sm:p-8 shadow-xl relative">
           <h2 className="text-2xl font-bold text-green mb-4">Profile Details</h2>
 
@@ -255,9 +247,7 @@ const onSave = async () => {
               <DetailRow
                 icon={<MapPinIcon className="h-5 w-5" />}
                 label="Address"
-                value={`${profile.address || ""}, ${
-                  profile.city || ""
-                }, ${profile.country || ""}`}
+                value={`${profile.address || ""}, ${profile.city || ""}, ${profile.country || ""}`}
               />
 
               <p className="text-green/70 mt-2">
@@ -278,8 +268,6 @@ const onSave = async () => {
     </div>
   );
 }
-
-/* ---------------- Helper Components ---------------- */
 
 const DetailRow = ({ icon, label, value }) => (
   <div className="flex items-center gap-3 text-green">

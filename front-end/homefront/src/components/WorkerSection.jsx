@@ -1,5 +1,4 @@
 // src/components/WorkerSection.jsx
-
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchAPI, getImageURL } from "../utils/api";
@@ -9,203 +8,121 @@ export default function WorkersSection() {
   const [workers, setWorkers] = useState([]);
   const [professions, setProfessions] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [sortBy, setSortBy] = useState("rating");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  /* ===========================
-      1. FETCH WORKERS (FAST)
-  =========================== */
+  // FETCH WORKERS
   useEffect(() => {
-    let cancelled = false;
-
-    async function fetchWorkers() {
-      try {
-        // ✅ Load cached first (instant load)
-        const cached = localStorage.getItem("workers_cache");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (!cancelled && Array.isArray(parsed)) {
-            setWorkers(parsed);
-          }
-        }
-
-        // ✅ Always refresh in background (Neon wake-up)
-        const data = await fetchAPI("/worker/worker_list");
-
-        const normalized = (Array.isArray(data) ? data : []).map((w, idx) => {
-          const id =
-            w.id ??
-            w.pk ??
-            w.username ??
-            (w.name
-              ? `worker-${w.name.toLowerCase().replace(/\s+/g, "-")}`
-              : `worker-${idx}`);
-
-          const image =
-            getImageURL(w.image || w.image_url || w.profile_image) ||
-            "https://via.placeholder.com/400";
-
-          const servicesArr = Array.isArray(w.services) ? w.services : [];
-          const skills = servicesArr.map((s) => s.services || "Unknown");
-
-          const professionName =
-            typeof w.profession === "string"
-              ? w.profession
-              : w.profession?.name ?? "";
-
-          const category = professionName
-            ? professionName.toLowerCase().replace(/\s+/g, "-")
-            : "general";
-
-          const experience =
-            typeof w.experience === "string"
-              ? w.experience
-              : String(w.experience ?? "");
-
-          const rating = w.ratings?.average_rating ?? null;
-          const reviews = w.ratings?.total_ratings ?? 0;
-          const location = w.location ?? "";
-          const availability =
-            w.availability ??
-            (Math.random() > 0.5
-              ? "Available Today"
-              : "Available Tomorrow");
-
-          return {
-            id,
-            image,
-            name: w.name ?? w.username ?? "Unknown",
-            profession: professionName,
-            category,
-            experience,
-            rating,
-            reviews,
-            location,
-            availability,
-            skills,
-            services: servicesArr,
-            bio: w.bio ?? "",
-            verified: !!w.verified,
-          };
-        });
-
-        if (!cancelled) {
-          setWorkers(normalized);
-
-          // ✅ Save updated cache
-          localStorage.setItem("workers_cache", JSON.stringify(normalized));
-        }
-      } catch (err) {
-        console.error("Error fetching workers:", err);
-      }
-    }
-
-    fetchWorkers();
-    return () => {
-      cancelled = true;
-    };
+    loadWorkers();
   }, []);
 
-  /* ===========================
-     2. FETCH PROFESSIONS (FAST)
-  =========================== */
+  // FETCH PROFESSIONS
   useEffect(() => {
-    let cancelled = false;
-
-    async function fetchProfessions() {
-      try {
-        // ✅ Instant data from cache
-        const cached = localStorage.getItem("professions_cache");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (!cancelled) {
-            setProfessions([
-              { id: "all", name: "All Services", slug: "all" },
-              ...parsed,
-            ]);
-          }
-        }
-
-        // ✅ Background refresh
-        const data = await fetchAPI("/worker/profession_list");
-
-        if (!cancelled && Array.isArray(data)) {
-          setProfessions([
-            { id: "all", name: "All Services", slug: "all" },
-            ...data,
-          ]);
-
-          localStorage.setItem(
-            "professions_cache",
-            JSON.stringify(data)
-          );
-        }
-      } catch (err) {
-        console.error("Error fetching professions:", err);
-
-        if (!cancelled) {
-          setProfessions([{ id: "all", name: "All Services", slug: "all" }]);
-        }
-      }
-    }
-
-    fetchProfessions();
-    return () => {
-      cancelled = true;
-    };
+    loadProfessions();
   }, []);
 
-  // Add dynamic count
-  const professionsWithCount = professions.map((prof) => ({
-    ...prof,
-    count:
-      prof.slug === "all"
-        ? workers.length
-        : workers.filter((w) => w.category === prof.slug).length,
-  }));
+  const loadWorkers = async () => {
+    try {
+      setLoading(true);
+      
+      // Check cache first
+      const cached = localStorage.getItem("workers_cache");
+      if (cached) {
+        const data = JSON.parse(cached);
+        setWorkers(data);
+        setLoading(false);
+      }
+
+      // Fetch fresh data
+      const data = await fetchAPI("/worker/worker_list/");
+      
+      if (Array.isArray(data) && data.length > 0) {
+        setWorkers(data);
+        localStorage.setItem("workers_cache", JSON.stringify(data));
+        setError(null);
+      }
+    } catch (err) {
+      console.error("Error loading workers:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadProfessions = async () => {
+    try {
+      const cached = localStorage.getItem("professions_cache");
+      if (cached) {
+        setProfessions([{ id: "all", name: "All Services", slug: "all" }, ...JSON.parse(cached)]);
+      }
+
+      const data = await fetchAPI("/worker/profession_list/");
+      if (Array.isArray(data)) {
+        setProfessions([{ id: "all", name: "All Services", slug: "all" }, ...data]);
+        localStorage.setItem("professions_cache", JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error("Error loading professions:", err);
+    }
+  };
 
   // Filter workers
   const filteredWorkers = workers.filter((worker) => {
     const matchesSearch =
-      (worker.name || "")
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      (worker.profession || "")
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+      worker.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      worker.profession?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      worker.profession?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesCategory =
-      selectedCategory === "all" ||
-      worker.category === selectedCategory;
+    const workerCategory = typeof worker.profession === 'string' 
+      ? worker.profession.toLowerCase().replace(/\s+/g, "-")
+      : worker.profession?.slug || worker.profession?.name?.toLowerCase().replace(/\s+/g, "-") || "";
+
+    const matchesCategory = selectedCategory === "all" || workerCategory === selectedCategory;
 
     return matchesSearch && matchesCategory;
   });
 
-  // Sort workers
-  const sortedWorkers = [...filteredWorkers].sort((a, b) => {
-    switch (sortBy) {
-      case "rating":
-        return (b.rating ?? 0) - (a.rating ?? 0);
-      case "experience":
-        return (
-          (parseInt(b.experience, 10) || 0) -
-          (parseInt(a.experience, 10) || 0)
-        );
-      default:
-        return 0;
-    }
-  });
+  // LOADING
+  if (loading && workers.length === 0) {
+    return (
+      <section className="bg-light_green min-h-screen py-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-xl text-primary font-medium">Loading workers...</p>
+        </div>
+      </section>
+    );
+  }
+
+  // ERROR
+  if (error && workers.length === 0) {
+    return (
+      <section className="bg-light_green min-h-screen py-8 flex items-center justify-center">
+        <div className="text-center bg-white rounded-2xl p-8 shadow-lg max-w-md">
+          <div className="text-red-500 text-5xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Failed to Load Workers</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary/90"
+          >
+            Retry
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="bg-light_green min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
         {/* HEADER */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl md:text-4xl font-bold text-primary mb-2">
             Find Professional Workers
           </h1>
           <p className="text-gray-600 text-lg">
-            Browse {workers.length}+ verified professionals in your area
+            Browse {workers.length}+ verified professionals
           </p>
 
           <div className="relative max-w-2xl mx-auto mt-4 mb-6">
@@ -214,114 +131,138 @@ export default function WorkersSection() {
               placeholder="Search by name or profession..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-6 py-4 pr-12 text-lg border border-gray-300 rounded-2xl shadow-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              className="w-full px-6 py-4 text-lg border border-gray-300 rounded-2xl shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
 
-          {/* Quick Filter */}
+          {/* Category Filter */}
           <div className="flex flex-wrap justify-center gap-3 mb-6">
-            {professionsWithCount.slice(0, 5).map((prof) => (
-              <button
-                key={prof.slug}
-                onClick={() => setSelectedCategory(prof.slug)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
-                  selectedCategory === prof.slug
-                    ? "bg-white text-primary shadow-md"
-                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-                }`}
-              >
-                <span className="font-medium">{prof.name}</span>
-                <span className="text-xs bg-black/10 px-2 py-0.5 rounded-full">
-                  {prof.count}
-                </span>
-              </button>
-            ))}
+            {professions.map((prof) => {
+              const count = prof.slug === "all" 
+                ? workers.length 
+                : workers.filter(w => {
+                    const cat = typeof w.profession === 'string' 
+                      ? w.profession.toLowerCase().replace(/\s+/g, "-")
+                      : w.profession?.slug || w.profession?.name?.toLowerCase().replace(/\s+/g, "-") || "";
+                    return cat === prof.slug;
+                  }).length;
+
+              return (
+                <button
+                  key={prof.id || prof.slug}
+                  onClick={() => setSelectedCategory(prof.slug)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
+                    selectedCategory === prof.slug
+                      ? "bg-primary text-white shadow-md"
+                      : "bg-white text-gray-700 hover:bg-gray-100 border"
+                  }`}
+                >
+                  <span className="font-medium">{prof.name}</span>
+                  <span className="text-xs bg-black/10 px-2 py-0.5 rounded-full">
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* GRID */}
-        <div className="flex gap-8">
-          <div className="flex-1 space-y-4">
-            {sortedWorkers.map((worker) => (
-              <WorkerCard key={worker.id} {...worker} />
-            ))}
-
-            {sortedWorkers.length === 0 && (
-              <div className="text-center py-12">
-                <h3 className="text-xl font-medium text-gray-900 mb-2">
-                  No workers found
-                </h3>
-                <p className="text-gray-500">
-                  Try adjusting your search or filters
-                </p>
-              </div>
-            )}
-          </div>
+        {/* WORKERS LIST */}
+        <div className="space-y-4">
+          {filteredWorkers.length > 0 ? (
+            filteredWorkers.map((worker) => <WorkerCard key={worker.id} worker={worker} />)
+          ) : (
+            <div className="text-center py-12 bg-white rounded-2xl">
+              <div className="text-gray-400 text-6xl mb-4">🔍</div>
+              <h3 className="text-xl font-medium text-gray-900 mb-2">No workers found</h3>
+              <p className="text-gray-500">Try adjusting your search</p>
+            </div>
+          )}
         </div>
       </div>
     </section>
   );
 }
 
-/* ===========================
-      WORKER CARD
-=========================== */
-function WorkerCard({
-  id,
-  image,
-  name,
-  profession,
-  experience,
-  rating,
-  reviews,
-  location,
-  availability,
-  skills,
-  verified,
-}) {
-  const isAvailableToday = availability === "Available Today";
-  const skillsList = Array.isArray(skills) ? skills : [];
+/* WORKER CARD */
+function WorkerCard({ worker }) {
+  const professionName = typeof worker.profession === 'string' 
+    ? worker.profession 
+    : worker.profession?.name || "Service Provider";
+
+  const rating = worker.ratings?.average_rating || worker.rating || 0;
+  const reviews = worker.ratings?.total_ratings || 0;
+  const image = worker.image ? getImageURL(worker.image) : "https://via.placeholder.com/400";
 
   return (
     <Link
-      to={`/workers/${id}`}     
-      className="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border border-gray-100 overflow-hidden block w-full cursor-pointer"
+      to={`/workers/${worker.id}`}
+      className="block bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border border-gray-100"
     >
       <div className="flex p-6 gap-6">
-        <div className="relative">
+        {/* Image */}
+        <div className="relative flex-shrink-0">
           <img
             src={image}
-            alt={name}
+            alt={worker.name}
             className="w-24 h-24 rounded-full object-cover"
+            onError={(e) => {
+              e.target.src = "https://via.placeholder.com/400";
+            }}
           />
-          {verified && (
+          {worker.verified && (
             <span className="absolute -bottom-1 -right-1 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
               ✓
             </span>
           )}
         </div>
 
-        <div className="flex-1">
-          <h3 className="text-xl font-bold text-gray-900">{name}</h3>
-          <p className="text-primary font-semibold">{profession}</p>
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-xl font-bold text-gray-900">{worker.name}</h3>
+          <p className="text-primary font-semibold">{professionName}</p>
 
-          <div className="flex gap-3 mt-2">
-            <span>⭐ {rating ?? "N/A"}</span>
-            <span>{experience} experience</span>
+          <div className="flex gap-4 mt-2 text-sm text-gray-600">
+            <span>⭐ {rating > 0 ? rating.toFixed(1) : "New"}</span>
+            <span>{reviews} reviews</span>
+            <span>{worker.experience || "New"}</span>
           </div>
 
-          <div className="flex gap-2 mt-3">
-            {skillsList.slice(0, 3).map((skill, index) => (
-              <span
-                key={index}
-                className="px-4 py-1 bg-gray-100 rounded-full text-sm"
-              >
-                {skill}
-              </span>
-            ))}
-          </div>
+          {/* Skills */}
+          {worker.services && worker.services.length > 0 && (
+            <div className="flex gap-2 mt-3 flex-wrap">
+              {worker.services.slice(0, 3).map((service, idx) => (
+                <span
+                  key={idx}
+                  className="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700"
+                >
+                  {service.services || service.name}
+                </span>
+              ))}
+              {worker.services.length > 3 && (
+                <span className="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-500">
+                  +{worker.services.length - 3} more
+                </span>
+              )}
+            </div>
+          )}
 
-          <p className="mt-3 text-gray-600">{location}</p>
+          {worker.location && (
+            <p className="mt-3 text-gray-600 text-sm">📍 {worker.location}</p>
+          )}
+        </div>
+
+        {/* Availability */}
+        <div className="flex-shrink-0">
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-medium ${
+              worker.availability === "Available Today"
+                ? "bg-green-100 text-green-700"
+                : "bg-yellow-100 text-yellow-700"
+            }`}
+          >
+            {worker.availability || "Available"}
+          </span>
         </div>
       </div>
     </Link>
