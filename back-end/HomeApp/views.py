@@ -35,7 +35,6 @@ def ping(request):
     return Response({"status": "ok"})
 
 
-@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login(request):
@@ -60,7 +59,6 @@ def login(request):
     }
     return Response(payload, status=status.HTTP_200_OK)
 
-    
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_register(request):
@@ -101,7 +99,6 @@ def user_profile(request):
 
     
 # Worker Setup --- >>
-
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def worker_register(request):

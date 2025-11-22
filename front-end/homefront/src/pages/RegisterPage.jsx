@@ -28,7 +28,17 @@ export default function Register() {
   useEffect(() => {
     const loadProfessions = async () => {
       try {
-        const data = await fetchAPI("/worker/profession_list");
+        // ✅ Check cache first
+        const cached = localStorage.getItem("professions_cache");
+        if (cached) {
+          setProfessions(JSON.parse(cached).map(item => ({
+            id: item.id,
+            name: item.name || item.profession?.name,
+          })));
+        }
+
+        // ✅ Fetch fresh data
+        const data = await fetchAPI("/worker/profession_list/");
         setProfessions(
           data.map((item) => ({
             id: item.id,
@@ -44,7 +54,6 @@ export default function Register() {
     if (step === "workerForm") loadProfessions();
   }, [step]);
 
-  // Handle Change
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -54,7 +63,6 @@ export default function Register() {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  // Validation
   const validateForm = () => {
     const newErrors = {};
 
@@ -82,7 +90,6 @@ export default function Register() {
     return newErrors;
   };
 
-  // Submit Handler
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -97,7 +104,8 @@ export default function Register() {
 
     try {
       if (userType === "worker") {
-        await postAPI("/auth/worker/register", {
+        // ✅ Added trailing slash
+        await postAPI("/auth/worker/register/", {
           username: formData.name,
           name: formData.name,
           password: formData.password,
@@ -112,7 +120,8 @@ export default function Register() {
         alert("Worker registration successful! Please login.");
         navigate("/login");
       } else {
-        await postAPI("/auth/user/register", {
+        // ✅ Added trailing slash
+        await postAPI("/auth/user/register/", {
           username: formData.name,
           password: formData.password,
           email: formData.email,
@@ -143,7 +152,6 @@ export default function Register() {
     setStep(type === "worker" ? "workerForm" : "userForm");
   };
 
-  // User Type Selection Screen
   if (step === "userType") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-green p-4">
@@ -246,11 +254,9 @@ export default function Register() {
     );
   }
 
-  // Registration Form Screen
   return (
     <div className="flex min-h-screen items-center justify-center bg-green p-4">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-8 shadow-xl relative">
-        {/* Back Button */}
         <button
           onClick={goBack}
           type="button"
@@ -268,7 +274,6 @@ export default function Register() {
           </p>
         </div>
 
-        {/* Error Message */}
         {errors.submit && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-600 text-sm">{errors.submit}</p>
@@ -276,7 +281,6 @@ export default function Register() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
             <input
@@ -292,7 +296,6 @@ export default function Register() {
             {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
           </div>
 
-          {/* Email */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
             <input
@@ -308,7 +311,6 @@ export default function Register() {
             {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
           </div>
 
-          {/* Phone */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
             <input
@@ -324,7 +326,6 @@ export default function Register() {
             {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
           </div>
 
-          {/* Worker Fields */}
           {userType === "worker" && (
             <>
               <div>
@@ -377,7 +378,6 @@ export default function Register() {
             </>
           )}
 
-          {/* Address */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Address {userType === "worker" && "*"}
@@ -395,7 +395,6 @@ export default function Register() {
             {errors.address && <p className="mt-1 text-sm text-red-600">{errors.address}</p>}
           </div>
 
-          {/* Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Password *</label>
             <input
@@ -411,7 +410,6 @@ export default function Register() {
             {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
           </div>
 
-          {/* Confirm Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
             <input
@@ -427,7 +425,6 @@ export default function Register() {
             {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
           </div>
 
-          {/* Terms */}
           <div className="flex items-start">
             <input
               type="checkbox"
@@ -443,7 +440,6 @@ export default function Register() {
           </div>
           {errors.agreeToTerms && <p className="text-sm text-red-600">{errors.agreeToTerms}</p>}
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={isLoading}

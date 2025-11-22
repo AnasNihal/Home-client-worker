@@ -40,7 +40,7 @@ const getCookie = (name) => {
 export const fetchAPI = async (endpoint, options = {}) => {
   console.log("FINAL URL:", `${API_BASE_URL}${endpoint}`);
   
-  const token = endpoint.includes('/auth/login')
+  const token = (endpoint.startsWith('/auth/login') || endpoint.startsWith('/auth/user/register') || endpoint.startsWith('/auth/worker/register'))
     ? null
     : localStorage.getItem('access');
 
