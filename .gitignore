@@ -8,6 +8,7 @@ front-end/homefront/.next/
 front-end/homefront/out/
 front-end/homefront/*.log
 front-end/homefront/.env
+front-end/homefront/.env.example
 front-end/homefront/.env.*.local
 
 # -----------------
@@ -17,7 +18,8 @@ back-end/__pycache__/
 back-end/*.py[cod]
 back-end/*$py.class
 back-end/myenv/
-back-end/env/
+back-end/.env
+back-end/.env.example
 back-end/.venv/
 back-end/ENV/
 back-end/*.sqlite3
@@ -35,3 +37,4 @@ back-end/instance/
 *.swo
 .DS_Store
 Thumbs.db
+.env

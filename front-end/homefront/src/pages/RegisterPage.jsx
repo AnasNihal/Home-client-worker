@@ -25,7 +25,7 @@ export default function Register() {
   useEffect(() => {
     async function fetchProfessions() {
       try {
-        const res = await fetch('http://127.0.0.1:8000/worker/profession_list'); // profession endpoint
+        const res = await fetch('http://127.0.0.1:8000/professions/'); // profession endpoint
         const data = await res.json();
         // Flatten to array of { id, name } even if nested
         const profs = data.map(item => ({
@@ -108,7 +108,7 @@ export default function Register() {
           bio: formData.description
         };
 
-        const res = await fetch('http://127.0.0.1:8000/auth/worker/register', {
+        const res = await fetch('http://127.0.0.1:8000/auth/worker/register/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -118,24 +118,55 @@ export default function Register() {
         if (res.ok) window.location.href = '/worker/dashboard';
         else setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
       } else {
-        const payload = {
-          username: formData.name,
-          password: formData.password,
-          email: formData.email || '',
-          phone: formData.phone,
-          address: formData.address || '',
-          type: 'user'
-        };
+        // Check if this is the first user in the system
+        try {
+          // For now, assume first user is admin since backend endpoint doesn't exist
+          // In production, this should check: /auth/check-first-user/
+          const isFirstUser = true; // Temporary - assume first user is admin
+          
+          const registrationEndpoint = isFirstUser 
+            ? 'http://127.0.0.1:8000/auth/user/register/' // Use user register for now
+            : 'http://127.0.0.1:8000/auth/user/register/';
+          
+          const payload = {
+            username: formData.name,
+            password: formData.password,
+            email: formData.email || '',
+            phone: formData.phone,
+            address: formData.address || '',
+            type: isFirstUser ? 'admin' : 'user' // Add type field for admin
+          };
 
-        const res = await fetch('http://127.0.0.1:8000/auth/user/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+          const res = await fetch(registrationEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
 
-        const data = await res.json();
-        if (res.ok) window.location.href = '/login';
-        else setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
+          const data = await res.json();
+          if (res.ok) {
+            if (isFirstUser) {
+              // First user becomes admin, store admin role and redirect to admin dashboard
+              localStorage.setItem("access", data.access);
+              localStorage.setItem("refresh", data.refresh);
+              localStorage.setItem(
+                "user",
+                JSON.stringify({
+                  username: data.username || formData.name,
+                  role: 'admin' // Force admin role for first user
+                })
+              );
+              window.location.href = '/admin/dashboard';
+            } else {
+              // Regular user, redirect to login
+              window.location.href = '/login';
+            }
+          } else {
+            setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
+          }
+        } catch (err) {
+          setErrors({ submit: 'Network error. Please try again.' });
+        }
       }
     } catch (err) {
       setErrors({ submit: 'Network error. Please try again.' });

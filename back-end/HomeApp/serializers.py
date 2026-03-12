@@ -208,6 +208,7 @@ class BookingSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)  # user who booked
     worker = WorkerUserSerializer(read_only=True)          # nested worker info
     service = WorkerServiceSerializer(read_only=True)      # nested service info
+    total_amount = serializers.SerializerMethodField(read_only=True)
     service_id = serializers.PrimaryKeyRelatedField(
         queryset=WorkerService.objects.all(),
         source="service",
@@ -218,9 +219,26 @@ class BookingSerializer(serializers.ModelSerializer):
         model = Booking
         fields = [
             "id", "user", "worker", "service", "service_id",
-            "date", "time", "status", "notes", "created_at"
+            "date", "time", "status", "notes",
+            "payment_mode", "payment_status", "amount", "pay_later_fee", "total_amount",
+            "stripe_checkout_session_id",
+            "created_at"
         ]
-        read_only_fields = ["id", "status", "created_at", "user", "worker", "service"]
+        read_only_fields = [
+            "id",
+            "status",
+            "created_at",
+            "user",
+            "worker",
+            "service",
+            "payment_status",
+            "amount",
+            "pay_later_fee",
+            "stripe_checkout_session_id",
+        ]
+
+    def get_total_amount(self, obj):
+        return (obj.amount or 0) + (obj.pay_later_fee or 0)
 
 
 

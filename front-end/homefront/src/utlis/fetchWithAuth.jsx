@@ -5,8 +5,11 @@ export async function fetchWithAuth(url, options = {}) {
 
   const headers = {
     ...(options.headers || {}),
-    Authorization: access ? `Bearer ${access}` : undefined,
   };
+
+  if (access) {
+    headers.Authorization = `Bearer ${access}`;
+  }
 
   // First request
   let response = await fetch(url, { ...options, headers });
@@ -15,12 +18,14 @@ export async function fetchWithAuth(url, options = {}) {
     if (!refresh) {
       localStorage.removeItem("access");
       localStorage.removeItem("refresh");
+      localStorage.removeItem("user");
+      localStorage.removeItem("role");
       window.location.href = "/login";
       return null;
     }
 
     // Refresh access token
-    const refreshResponse = await fetch("http://127.0.0.1:8000/api/token/refresh/", {
+    const refreshResponse = await fetch("http://127.0.0.1:8000/token/refresh/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh }),
@@ -45,6 +50,8 @@ export async function fetchWithAuth(url, options = {}) {
       // Refresh failed → logout
       localStorage.removeItem("access");
       localStorage.removeItem("refresh");
+      localStorage.removeItem("user");
+      localStorage.removeItem("role");
       window.location.href = "/login";
       return null;
     }

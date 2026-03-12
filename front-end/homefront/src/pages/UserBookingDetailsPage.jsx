@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { fetchWithAuth } from "../utlis/fetchWithAuth";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
@@ -9,21 +10,15 @@ const UserBookingsPage = () => {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const getAuthToken = useCallback(() => localStorage.getItem("access"), []);
-  const getHeaders = useCallback(
-    () => ({
-      Authorization: `Bearer ${getAuthToken()}`,
-      "Content-Type": "application/json",
-    }),
-    [getAuthToken]
-  );
-
   const loadBookings = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/user/bookings/`, {
-        headers: getHeaders(),
+      const response = await fetchWithAuth(`${API_BASE_URL}/user/bookings/`, {
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
+      if (!response) return;
       if (!response.ok) throw new Error("Failed to load bookings");
       const data = await response.json();
       setBookings(data);
@@ -33,16 +28,19 @@ const UserBookingsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   const handleCancel = async (id) => {
     if (!window.confirm("Are you sure you want to cancel this booking?")) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/bookings/${id}/cancel/`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/bookings/${id}/cancel/`, {
         method: "PATCH",
-        headers: getHeaders(),
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
+      if (!response) return;
       if (!response.ok) throw new Error("Failed to cancel booking");
       const updated = await response.json();
       setBookings((prev) =>
@@ -58,10 +56,13 @@ const handleComplete = async (id) => {
   if (!window.confirm("Mark this booking as completed?")) return;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/bookings/${id}/complete/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/bookings/${id}/complete/`, {
       method: "PATCH",
-      headers: getHeaders(),
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
+    if (!response) return;
     if (!response.ok) throw new Error("Failed to complete booking");
     const updated = await response.json();
     setBookings((prev) =>
@@ -77,11 +78,14 @@ const handleComplete = async (id) => {
 
   const handleReview = async (workerId, rating, review) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/workers/${workerId}/rate/`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/workers/${workerId}/rate/`, {
         method: "POST",
-        headers: getHeaders(),
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ rating, review }),
       });
+      if (!response) return;
       if (!response.ok) throw new Error("Failed to submit review");
       alert("Review submitted successfully!");
     } catch (err) {

@@ -1,4 +1,4 @@
-// src/pages/Login.jsx
+// src/pages/LoginPage.jsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -19,7 +19,6 @@ export default function Login() {
       [name]: value
     }));
 
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
@@ -51,9 +50,12 @@ export default function Login() {
     setErrors({});
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/auth/login", {
+      const response = await fetch("http://127.0.0.1:8000/auth/login/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
         body: JSON.stringify({
           username: formData.username,
           password: formData.password
@@ -61,33 +63,34 @@ export default function Login() {
       });
 
       const data = await response.json();
-
+        
       if (response.ok) {
-        // ✅ Save tokens and user info in localStorage
         localStorage.setItem("access", data.access);
         localStorage.setItem("refresh", data.refresh);
+        
+        const userRole = data.role || "user";
+        
         localStorage.setItem(
           "user",
           JSON.stringify({
             username: data.username,
-            role: data.role
+            role: userRole
           })
         );
 
-        // ✅ Redirect based on role
-        if (data.role === "worker") {
+        if (userRole === "admin") {
+          navigate("/admin/dashboard");
+        } else if (userRole === "worker") {
           navigate("/worker/dashboard");
-        } else if (data.role === "user") {
-          navigate("/profile/me");
         } else {
-          navigate("/");
+          navigate("/profile/me");
         }
       } else {
         setErrors({ submit: data.detail || data.message || "Login failed" });
       }
     } catch (error) {
-      console.error("Network error:", error);
-      setErrors({ submit: "Network error, please try again." });
+      console.error("Login error:", error);
+      setErrors({ submit: "Network error. Please try again." });
     } finally {
       setIsLoading(false);
     }

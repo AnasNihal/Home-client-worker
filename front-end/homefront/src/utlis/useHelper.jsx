@@ -1,3 +1,5 @@
+import { fetchWithAuth } from "./fetchWithAuth";
+
 const API_URL = "http://127.0.0.1:8000"; // change to your backend URL
 
 // 🔑 Utility: Get token and user info
@@ -39,14 +41,15 @@ export async function bookWorker(workerId, bookingData) {
   }
 
   try {
-    const response = await fetch(`${API_URL}/workers/${workerId}/book/`, {
+    const response = await fetchWithAuth(`${API_URL}/workers/${workerId}/book/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`, // ✅ now uses "access" token
       },
       body: JSON.stringify(bookingData),
     });
+
+    if (!response) return;
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
@@ -75,14 +78,15 @@ export async function rateWorker(workerId, ratingValue, reviewText = "") {
 
   try {
     console.log("Auth header →", `Bearer ${token}`);
-    const response = await fetch(`${API_URL}/workers/${workerId}/rate/`, {
+    const response = await fetchWithAuth(`${API_URL}/workers/${workerId}/rate/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`, // ✅ now uses "access" token
       },
       body: JSON.stringify({ rating: ratingValue, review: reviewText }),
     });
+
+    if (!response) return;
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));

@@ -14,7 +14,7 @@ export default function WorkersSection() {
     let cancelled = false;
     async function fetchWorkers() {
       try {
-        const res = await fetch("http://127.0.0.1:8000/worker/worker_list");
+        const res = await fetch("http://127.0.0.1:8000/workers/");
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
         console.log("Raw workers response:", data);  
@@ -74,7 +74,7 @@ export default function WorkersSection() {
   useEffect(() => {
     async function fetchProfessions() {
       try {
-        const res = await fetch("http://127.0.0.1:8000/worker/profession_list");
+        const res = await fetch("http://127.0.0.1:8000/professions/");
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
         setProfessions([{ id: "all", name: "All Services", slug: "all" }, ...data]);

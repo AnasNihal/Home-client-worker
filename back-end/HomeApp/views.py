@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Avg
+from django_ratelimit.decorators import ratelimit
 from .serializers  import (
     ProfessionSerializer,
     UserRegistrationSerializer,
@@ -25,6 +26,7 @@ from django.core.mail import send_mail
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@ratelimit(key='ip', rate='5/m', block=True)  # Limit to 5 login attempts per minute per IP
 def login(request):
     username = request.data.get('username')
     password = request.data.get('password')
@@ -46,6 +48,7 @@ def login(request):
     
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@ratelimit(key='ip', rate='3/m', block=True)  # Limit to 3 registrations per minute per IP
 def user_register(request):
     serializer = UserRegistrationSerializer(data = request.data)
     if serializer.is_valid():
@@ -86,6 +89,7 @@ def user_profile(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@ratelimit(key='ip', rate='3/m', block=True)  # Limit to 3 registrations per minute per IP
 def worker_register(request):
     serializer = WorkerRegistrationSerializer( data = request.data)
     if serializer.is_valid():
@@ -284,6 +288,83 @@ def profession_list(request):
 
 from datetime import datetime
 
+from django.conf import settings
+from decimal import Decimal
+import stripe
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_stripe_checkout_session(request, worker_id):
+    """Create a Stripe Checkout Session for a booking WITHOUT creating the Booking.
+
+    The booking will be created only after payment succeeds (see confirm_stripe_payment).
+    """
+    if request.user.role.lower() != "user":
+        return Response({"detail": "Only users can book services"}, status=403)
+
+    worker = get_object_or_404(Worker, pk=worker_id)
+    service_id = request.data.get("service_id")
+    date_str = request.data.get("date")
+    time = request.data.get("time")
+
+    if not service_id or not date_str:
+        return Response({"detail": "Service and date must be provided"}, status=400)
+
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return Response({"detail": "Invalid date format. Use YYYY-MM-DD."}, status=400)
+
+    conflict = Booking.objects.filter(
+        worker=worker,
+        date=date_obj,
+        status__in=["pending", "accepted"],
+    ).exists()
+    if conflict:
+        return Response(
+            {"detail": f"{worker.name} is already booked on {date_obj}. Please choose another day."},
+            status=400,
+        )
+
+    service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
+    base_amount = Decimal(service.price or 0)
+
+    if not settings.STRIPE_SECRET_KEY:
+        return Response({"detail": "Stripe is not configured. Add STRIPE_SECRET_KEY."}, status=500)
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    amount_paise = int(base_amount * 100)
+
+    session = stripe.checkout.Session.create(
+        mode="payment",
+        line_items=[
+            {
+                "price_data": {
+                    "currency": "inr",
+                    "product_data": {
+                        "name": f"Booking - {service.services}",
+                    },
+                    "unit_amount": amount_paise,
+                },
+                "quantity": 1,
+            }
+        ],
+        success_url=f"{settings.FRONTEND_BASE_URL}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{settings.FRONTEND_BASE_URL}/payment/cancel",
+        metadata={
+            "payment_mode": "now",
+            "user_id": str(request.user.id),
+            "worker_id": str(worker.id),
+            "service_id": str(service.id),
+            "date": str(date_obj),
+            "time": str(time or ""),
+            "amount": str(base_amount),
+        },
+    )
+
+    return Response({"checkout_url": session.url, "session_id": session.id}, status=200)
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_booking(request, worker_id):
@@ -298,9 +379,13 @@ def create_booking(request, worker_id):
     service_id = request.data.get("service_id")
     date_str = request.data.get("date")
     time = request.data.get("time")
+    payment_mode = (request.data.get("payment_mode") or "later").lower()
 
     if not service_id or not date_str:
         return Response({"detail": "Service and date must be provided"}, status=400)
+
+    if payment_mode not in ["later"]:
+        return Response({"detail": "Invalid payment_mode. Use 'later'."}, status=400)
 
     # Convert date string to Python date object
     try:
@@ -328,16 +413,108 @@ def create_booking(request, worker_id):
         "time": time,
     }
 
-    serializer = BookingSerializer(data=data)
+    serializer = BookingSerializer(data={**data, "payment_mode": payment_mode})
     if serializer.is_valid():
+        service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
+
+        base_amount = Decimal(service.price or 0)
+        pay_later_fee = Decimal("20.00")
+
         booking = serializer.save(
             user=request.user,
             worker=worker,
-            status="pending"
+            status="pending",
+            amount=base_amount,
+            pay_later_fee=pay_later_fee,
+            payment_status="due",
         )
-        return Response(BookingSerializer(booking, context={"request": request}).data, status=201)
+
+        response_payload = BookingSerializer(booking, context={"request": request}).data
+
+        return Response(response_payload, status=201)
     else:
         return Response(serializer.errors, status=400)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def confirm_stripe_payment(request):
+    session_id = request.query_params.get("session_id")
+    if not session_id:
+        return Response({"detail": "session_id is required"}, status=400)
+
+    if not settings.STRIPE_SECRET_KEY:
+        return Response({"detail": "Stripe is not configured. Add STRIPE_SECRET_KEY."}, status=500)
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except Exception:
+        return Response({"detail": "Failed to retrieve Stripe session"}, status=400)
+
+    metadata = session.metadata if getattr(session, "metadata", None) else {}
+    payment_mode = (metadata.get("payment_mode") or "").lower()
+    if payment_mode != "now":
+        return Response({"detail": "Invalid session for payment confirmation"}, status=400)
+
+    if str(metadata.get("user_id")) != str(request.user.id):
+        return Response({"detail": "This payment session does not belong to the current user"}, status=403)
+
+    if session.payment_status != "paid":
+        return Response({"detail": "Payment not completed"}, status=400)
+
+    existing = Booking.objects.filter(stripe_checkout_session_id=session.id, user=request.user).first()
+    if existing:
+        if existing.payment_status != "paid":
+            existing.payment_status = "paid"
+            existing.save(update_fields=["payment_status"])
+        return Response(BookingSerializer(existing, context={"request": request}).data, status=200)
+
+    worker_id = metadata.get("worker_id")
+    service_id = metadata.get("service_id")
+    date_str = metadata.get("date")
+    time = metadata.get("time")
+
+    if not worker_id or not service_id or not date_str:
+        return Response({"detail": "Booking metadata missing in session"}, status=400)
+
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return Response({"detail": "Invalid date metadata"}, status=400)
+
+    worker = get_object_or_404(Worker, pk=worker_id)
+    service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
+
+    conflict = Booking.objects.filter(
+        worker=worker,
+        date=date_obj,
+        status__in=["pending", "accepted"],
+    ).exists()
+    if conflict:
+        return Response(
+            {"detail": f"{worker.name} is already booked on {date_obj}. Please choose another day."},
+            status=409,
+        )
+
+    base_amount = Decimal(service.price or 0)
+
+    booking = Booking.objects.create(
+        user=request.user,
+        worker=worker,
+        service=service,
+        date=date_obj,
+        time=time,
+        status="pending",
+        payment_mode="now",
+        payment_status="paid",
+        amount=base_amount,
+        pay_later_fee=Decimal("0.00"),
+        stripe_checkout_session_id=session.id,
+    )
+
+    return Response(BookingSerializer(booking, context={"request": request}).data, status=200)
 
 
 

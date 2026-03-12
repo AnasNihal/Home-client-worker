@@ -109,6 +109,18 @@ class Booking(models.Model):
         ("canceled", "Canceled"),
     )
 
+    PAYMENT_MODE_CHOICES = (
+        ("now", "Pay Now"),
+        ("later", "Pay Later"),
+    )
+
+    PAYMENT_STATUS_CHOICES = (
+        ("unpaid", "Unpaid"),
+        ("pending", "Pending"),
+        ("paid", "Paid"),
+        ("due", "Due"),
+    )
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -128,6 +140,11 @@ class Booking(models.Model):
     time = models.TimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     notes = models.TextField(blank=True, null=True)
+    payment_mode = models.CharField(max_length=10, choices=PAYMENT_MODE_CHOICES, default="later")
+    payment_status = models.CharField(max_length=10, choices=PAYMENT_STATUS_CHOICES, default="unpaid")
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    pay_later_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    stripe_checkout_session_id = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

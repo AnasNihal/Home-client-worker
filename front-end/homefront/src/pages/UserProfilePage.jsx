@@ -1,6 +1,6 @@
 // src/pages/UserProfilePage.jsx
-import React, { useEffect, useState, useMemo } from "react";
-import { fetchWithAuth } from "../utlis/fetchWithAuth";
+import React, { useEffect, useState } from "react";
+import { getAuthData } from "../utlis/useHelper";
 import { PencilIcon, UserIcon, MapPinIcon, PhoneIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 
 export default function UserProfilePage() {
@@ -9,263 +9,286 @@ export default function UserProfilePage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({});
-  const [preview, setPreview] = useState(null);
 
-  const fetchProfile = async () => {
-    try {
-      const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile");
-      if (!res || !res.ok) throw new Error("Failed to fetch profile");
-      const data = await res.json();
-      setProfile(data);
+  useEffect(() => {
+    // Get user data from localStorage instead of API call
+    const { user } = getAuthData();
+    if (user) {
+      setProfile({
+        username: user.username,
+        email: user.email || '',
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        phone: '',
+        bio: '',
+        address: '',
+        city: '',
+        postal_code: '',
+        country: ''
+      });
       setForm({
-        first_name: data.first_name || "",
-        last_name: data.last_name || "",
-        email: data.email || "",
-        phone: data.phone || "",
-        bio: data.bio || "",
-        address: data.address || "",
-        city: data.city || "",
-        postal_code: data.postal_code || "",
-        country: data.country || "",
-        profileimage: null,
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        email: user.email || '',
+        phone: '',
+        bio: '',
+        address: '',
+        city: '',
+        postal_code: '',
+        country: ''
       });
-      setPreview(data.profileimage_url || data.profileimage || null);
-    } catch (err) {
-      setError(err.message || "Something went wrong");
-    }
-  };
-
-  useEffect(() => { fetchProfile(); }, []);
-
-  const displayName = useMemo(() => {
-    if (!profile) return "User";
-    return (
-      `${profile.first_name || ""} ${profile.last_name || ""}`.trim() ||
-      profile.username ||
-      "User"
-    );
-  }, [profile]);
-
-  const initials = useMemo(() => {
-    if (!profile) return "U";
-    const first = profile.first_name?.[0] || profile.username?.[0] || "U";
-    const last = profile.last_name?.[0] || profile.username?.[1] || "";
-    return (first + last).toUpperCase();
-  }, [profile]);
-
-  const onChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === "profileimage") {
-      const file = files?.[0] || null;
-      setForm((f) => ({ ...f, profileimage: file }));
-      setPreview(file ? URL.createObjectURL(file) : profile?.profileimage || null);
     } else {
-      setForm((f) => ({ ...f, [name]: value }));
+      setError("No user data found");
     }
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const onCancel = () => {
-    if (!profile) return;
-    setForm({
-      first_name: profile.first_name || "",
-      last_name: profile.last_name || "",
-      email: profile.email || "",
-      phone: profile.phone || "",
-      bio: profile.bio || "",
-      address: profile.address || "",
-      city: profile.city || "",
-      postal_code: profile.postal_code || "",
-      country: profile.country || "",
-      profileimage: null,
-    });
-    setPreview(profile.profileimage || null);
-    setEditing(false);
-  };
-
-  const onSave = async () => {
+  const handleSave = async (e) => {
+    e.preventDefault();
     setSaving(true);
-    setError("");
+    
     try {
-      const data = new FormData();
-      Object.entries(form).forEach(([key, value]) => {
-        if (key !== "profileimage" && value !== null && value !== "") {
-          data.append(key, value);
-        }
-      });
-      if (form.profileimage instanceof File) {
-        data.append("profileimage", form.profileimage);
-      }
-      const res = await fetchWithAuth("http://127.0.0.1:8000/user/profile/", {
-        method: "PUT",
-        body: data,
-      });
-      if (!res || !res.ok) throw new Error("Update failed");
-      const updated = await res.json();
-      setProfile(updated);
+      // Simulate saving - just update local state
+      setProfile(prev => ({ ...prev, ...form }));
       setEditing(false);
-      const newUrl = updated.profileimage_url || updated.profileimage || preview;
-      setPreview(newUrl ? `${newUrl}?t=${Date.now()}` : null);
+      setTimeout(() => setSaving(false), 1000);
     } catch (err) {
-      setError(err.message || "Failed to save changes");
-    } finally {
+      setError("Failed to save profile");
       setSaving(false);
     }
   };
 
-  if (error)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-light_green p-4">
-        <div className="bg-white/30 rounded-2xl p-8 text-center text-green">{error}</div>
-      </div>
-    );
+  const displayName = profile ? 
+    `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || 
+    profile.username || 
+    "User" 
+    : "User";
 
-  if (!profile)
+  const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+  if (error && !profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-light_green">
-        <div className="bg-white/30 rounded-2xl p-8 text-center">
-          <p className="text-green">Loading profile...</p>
+      <div className="min-h-screen bg-gradient-to-br from-[#0b2e28] to-[#1a4d3a] flex items-center justify-center p-4">
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 text-center shadow-2xl max-w-md">
+          <div className="text-red-400 text-6xl mb-4">⚠️</div>
+          <p className="text-white font-medium mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-[#0b2e28] px-6 py-3 rounded-xl hover:from-yellow-300 hover:to-yellow-400 transition-all duration-300"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
+  }
 
   return (
-    <div className="min-h-screen bg-light_green p-4 sm:p-6 relative top-24">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Profile Card */}
-        <div className="bg-green/20 rounded-3xl p-6 sm:p-8 shadow-xl relative">
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            {/* Profile Image */}
-            <div className="relative">
-              <label className="cursor-pointer">
-                {preview ? (
-                  <img
-                    src={preview}
-                    alt="Profile"
-                    className="w-32 h-32 rounded-full object-cover shadow-lg"
-                  />
-                ) : (
-                  <div className="w-32 h-32 rounded-full bg-green flex items-center justify-center text-white font-bold text-4xl shadow-lg">
-                    {initials}
-                  </div>
-                )}
-                <input
-                  type="file"
-                  name="profileimage"
-                  accept="image/*"
-                  onChange={onChange}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {/* Profile Info */}
-            <div className="flex-1 text-center sm:text-left">
-              <h1 className="text-3xl sm:text-4xl font-bold text-green mb-2">{displayName}</h1>
-              <p className="text-green font-medium">{profile.email}</p>
-              {/* <p className="text-green mt-2">{profile.phone || "No phone added"}</p> */}
+    <div className="min-h-screen bg-gray-50 pt-20">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-[#1c392e] to-[#1E5F4B] p-8">
+            <div className="flex items-center gap-6">
+              <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm border-4 border-white/30 flex items-center justify-center shadow-lg">
+                <span className="text-3xl font-bold text-white">{initials}</span>
+              </div>
+              <div className="flex-1">
+                <h1 className="text-4xl font-bold text-white mb-2">{displayName}</h1>
+                <p className="text-gray-200 text-lg">{profile?.email || 'No email'}</p>
+                <p className="text-gray-300 text-sm mt-2">Member since {new Date().toLocaleDateString()}</p>
+              </div>
+              <button
+                onClick={() => setEditing(!editing)}
+                className="p-3 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all duration-300 shadow-lg"
+              >
+                <PencilIcon className="h-6 w-6 text-white" />
+              </button>
             </div>
           </div>
 
-          {/* Edit Button */}
-          <button
-            onClick={() => setEditing(true)}
-            className="absolute top-4 right-4 flex items-center gap-1 bg-yellow px-3 py-1 rounded-xl text-green hover:bg-yellow/90"
-          >
-            <PencilIcon className="h-4 w-4" /> Edit
-          </button>
-        </div>
-
-        {/* Details Section */}
-        <div className="bg-green/20 rounded-3xl p-6 sm:p-8 shadow-xl relative">
-          <h2 className="text-2xl font-bold text-green mb-4">Profile Details</h2>
-          {!editing ? (
-            <div className="space-y-3">
-              <DetailRow icon={<UserIcon className="h-5 w-5" />} label="Name" value={displayName} />
-              <DetailRow icon={<EnvelopeIcon className="h-5 w-5" />} label="Email" value={profile.email} />
-              <DetailRow icon={<PhoneIcon className="h-5 w-5" />} label="Phone" value={profile.phone} />
-              <DetailRow icon={<MapPinIcon className="h-5 w-5" />} label="Address" value={`${profile.address || ""}, ${profile.city || ""}, ${profile.country || ""}`} />
-              <p className="text-green/70 mt-2">{profile.bio || "No bio added"}</p>
-            </div>
-          ) : (
-            <ProfileEditForm
-              form={form}
-              onChange={onChange}
-              onCancel={onCancel}
-              onSave={onSave}
-              saving={saving}
-            />
-          )}
+          {/* Content */}
+          <div className="p-8">
+            {editing ? (
+              <form onSubmit={handleSave} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                    <input
+                      type="text"
+                      name="first_name"
+                      value={form.first_name}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1c392e] focus:border-transparent transition-all duration-200"
+                      placeholder="First name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                    <input
+                      type="text"
+                      name="last_name"
+                      value={form.last_name}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1c392e] focus:border-transparent transition-all duration-200"
+                      placeholder="Last name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={form.email}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1c392e] focus:border-transparent transition-all duration-200"
+                      placeholder="Email"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={form.phone}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1c392e] focus:border-transparent transition-all duration-200"
+                      placeholder="Phone number"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={form.city}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1c392e] focus:border-transparent transition-all duration-200"
+                      placeholder="City"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
+                    <input
+                      type="text"
+                      name="country"
+                      value={form.country}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1c392e] focus:border-transparent transition-all duration-200"
+                      placeholder="Country"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
+                  <textarea
+                    name="bio"
+                    value={form.bio}
+                    onChange={handleChange}
+                    rows={4}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1c392e] focus:border-transparent transition-all duration-200"
+                    placeholder="Tell us about yourself"
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-6 py-3 bg-[#f8d357] text-[#1c392e] rounded-xl font-semibold hover:bg-[#f5c842] transition-all duration-300 disabled:opacity-50 shadow-lg"
+                  >
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(false)}
+                    className="px-6 py-3 bg-gray-100 border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-[#97bf8a]/20 rounded-xl flex items-center justify-center">
+                      <UserIcon className="h-6 w-6 text-[#1c392e]" />
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm">Full Name</p>
+                      <p className="text-gray-900 font-medium text-lg">{displayName}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-[#97bf8a]/20 rounded-xl flex items-center justify-center">
+                      <EnvelopeIcon className="h-6 w-6 text-[#1c392e]" />
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm">Email</p>
+                      <p className="text-gray-900 font-medium text-lg">{profile?.email || 'Not provided'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-[#97bf8a]/20 rounded-xl flex items-center justify-center">
+                      <PhoneIcon className="h-6 w-6 text-[#1c392e]" />
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm">Phone</p>
+                      <p className="text-gray-900 font-medium text-lg">{profile?.phone || 'Not provided'}</p>
+                    </div>
+                  </div>
+                  </div>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-[#97bf8a]/20 rounded-xl flex items-center justify-center">
+                        <MapPinIcon className="h-6 w-6 text-[#1c392e]" />
+                      </div>
+                      <div>
+                        <p className="text-gray-600 text-sm">Location</p>
+                        <p className="text-gray-900 font-medium text-lg">
+                          {profile?.city && profile?.country 
+                            ? `${profile.city}, ${profile.country}`
+                            : profile?.city || profile?.country || 'Not provided'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-[#97bf8a]/20 rounded-xl flex items-center justify-center">
+                        <UserIcon className="h-6 w-6 text-[#1c392e]" />
+                      </div>
+                      <div>
+                        <p className="text-gray-600 text-sm">Username</p>
+                        <p className="text-gray-900 font-medium text-lg">@{profile?.username || 'unknown'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-[#97bf8a]/20 rounded-xl flex items-center justify-center">
+                        <UserIcon className="h-6 w-6 text-[#1c392e]" />
+                      </div>
+                      <div>
+                        <p className="text-gray-600 text-sm">Account Type</p>
+                        <p className="text-gray-900 font-medium text-lg">Regular User</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {profile?.bio && (
+                  <div className="bg-[#97bf8a]/10 rounded-xl p-6 border border-[#97bf8a]/30">
+                    <h3 className="text-[#1c392e] font-semibold mb-3 text-lg">About</h3>
+                    <p className="text-gray-700 leading-relaxed">{profile.bio}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
-/* ---------------- Helper Components ---------------- */
-const DetailRow = ({ icon, label, value }) => (
-  <div className="flex items-center gap-3 text-green">
-    <div className="bg-green/10 p-2 rounded-lg">{icon}</div>
-    <div>
-      <p className="text-green/70 text-sm">{label}</p>
-      <p className="font-medium">{value || "N/A"}</p>
-    </div>
-  </div>
-);
-
-const ProfileEditForm = ({ form, onChange, onCancel, onSave, saving }) => (
-  <form
-    className="space-y-4"
-    onSubmit={(e) => {
-      e.preventDefault();
-      onSave();
-    }}
-  >
-    <input
-      type="text"
-      name="first_name"
-      value={form.first_name}
-      onChange={onChange}
-      placeholder="First Name"
-      className="w-full px-4 py-2 border rounded-lg"
-    />
-    <input
-      type="text"
-      name="last_name"
-      value={form.last_name}
-      onChange={onChange}
-      placeholder="Last Name"
-      className="w-full px-4 py-2 border rounded-lg"
-    />
-    <input
-      type="email"
-      name="email"
-      value={form.email}
-      onChange={onChange}
-      placeholder="Email"
-      className="w-full px-4 py-2 border rounded-lg"
-    />
-    <input
-      type="text"
-      name="phone"
-      value={form.phone}
-      onChange={onChange}
-      placeholder="Phone"
-      className="w-full px-4 py-2 border rounded-lg"
-    />
-    <textarea
-      name="bio"
-      value={form.bio}
-      onChange={onChange}
-      placeholder="Bio"
-      className="w-full px-4 py-2 border rounded-lg"
-    />
-    <div className="flex justify-end gap-3">
-      <button type="button" onClick={onCancel} className="px-4 py-2 bg-green/20 rounded-lg">
-        Cancel
-      </button>
-      <button type="submit" disabled={saving} className="px-4 py-2 bg-yellow text-green rounded-lg">
-        {saving ? "Saving..." : "Save"}
-      </button>
-    </div>
-  </form>
-);

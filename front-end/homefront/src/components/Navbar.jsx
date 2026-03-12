@@ -1,19 +1,31 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import { getAuthData } from "../utlis/useHelper";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [visible, setVisible] = useState(true);
+  const navigate = useNavigate();
 
-  // Dynamic user from backend
-  const [user, setUser] = useState(null); // { name, email, avatar, role } | null
-  const [userLoading, setUserLoading] = useState(true);
+  // Get user data from localStorage
+  const { user, token } = getAuthData();
+  const [userProfile, setUserProfile] = useState(null);
 
-  // Track token & role in state
-  const [token, setToken] = useState(localStorage.getItem("access"));
-  const [role, setRole] = useState(localStorage.getItem("role") || null);
+  // Set user profile from localStorage
+  useEffect(() => {
+    if (user) {
+      setUserProfile({
+        name: user.username || 'User',
+        email: user.email || '',
+        avatar: null,
+        role: user.role || 'user',
+      });
+    } else {
+      setUserProfile(null);
+    }
+  }, [user]);
 
   // Scroll behavior
   const prevScrollYRef = useRef(0);
@@ -28,187 +40,32 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Listen for token/role changes in other tabs
-  useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === "access") setToken(e.newValue);
-      if (e.key === "role") setRole(e.newValue);
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
   const closeMobileMenu = () => setIsMenuOpen(false);
   const closeProfileMenu = () => setIsProfileOpen(false);
 
-  // Fetch profile
-  useEffect(() => {
-    let alive = true;
+  const handleLogout = () => {
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("user");
+    localStorage.removeItem("role");
+    setUserProfile(null);
+    navigate("/login");
+  };
 
-    const fetchProfile = async (endpoint) => {
-      const res = await fetch(endpoint, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (!res.ok) throw new Error("fetch failed");
-      return await res.json();
-    };
+  const initials = userProfile?.name ? userProfile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : "U";
 
-    const load = async () => {
-      setUserLoading(true);
-      if (!token) {
-        if (alive) {
-          setUser(null);
-          setUserLoading(false);
-          setRole(localStorage.getItem("role") || null);
-        }
-        return;
-      }
+  const isAuthed = !!userProfile;
 
-      try {
-        const storedRole = localStorage.getItem("role") || role;
-        if (storedRole) {
-          const endpoint =
-            storedRole === "worker"
-              ? "http://127.0.0.1:8000/worker/dashboard"
-              : "http://127.0.0.1:8000/user/profile";
-          const data = await fetchProfile(endpoint);
-
-const normalized =
-  storedRole === "worker"
-    ? {
-        name: data.name || data.username || "Worker",
-        email: data.email || "",
-        avatar: data.image
-          ? data.image.startsWith("http")
-            ? data.image
-            : `http://127.0.0.1:8000${data.image}`
-          : "", // fallback
-        role: "worker",
-      }
-    : {
-        name: `${data.first_name || ""} ${data.last_name || ""}`.trim() || data.username || "User",
-        email: data.email || "",
-        avatar: data.profileimage
-          ? data.profileimage.startsWith("http")
-            ? data.profileimage
-            : `http://127.0.0.1:8000${data.profileimage}`
-          : "", // fallback if no image
-        role: "user",
-      };
-
-
-          if (alive) {
-            setUser(normalized);
-            setRole(normalized.role);
-            localStorage.setItem("role", normalized.role);
-          }
-          return;
-        }
-
-        // If no stored role, try user first
-        try {
-          const data = await fetchProfile("http://127.0.0.1:8000/user/profile");
-          if (alive) {
-            setUser({
-              name:
-                `${data.first_name || ""} ${data.last_name || ""}`.trim() ||
-                data.username ||
-                "User",
-              email: data.email || "",
-              avatar: data.profileimage || "",
-              role: "user",
-            });
-            setRole("user");
-            localStorage.setItem("role", "user");
-          }
-          return;
-        } catch (errUser) {
-          // try worker
-        }
-
-        try {
-          const data = await fetchProfile("http://127.0.0.1:8000/worker/dashboard");
-          if (alive) {
-            setUser({
-              name: data.name || data.username || "Worker",
-              email: data.email || "",
-              avatar: data.image || "",
-              role: "worker",
-            });
-            setRole("worker");
-            localStorage.setItem("role", "worker");
-          }
-          return;
-        } catch (errWorker) {
-          if (alive) {
-            setUser(null);
-            setRole(null);
-            localStorage.removeItem("role");
-          }
-        }
-      } catch (err) {
-        if (alive) {
-          setUser(null);
-          setRole(null);
-          localStorage.removeItem("role");
-        }
-      } finally {
-        if (alive) setUserLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      alive = false;
-    };
-  }, [token, role]);
-
-  const initials = (u) =>
-    (u?.name
-      ? u.name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-      : "G"
-    ).toUpperCase();
-
-  const isAuthed = !!user;
-
-function handleLogout() {
-  const confirmLogout = window.confirm("Are you sure you want to log out?");
-  if (!confirmLogout) return;
-
-  // Remove tokens and role from localStorage
-  localStorage.removeItem("access");
-  localStorage.removeItem("refresh");
-  localStorage.removeItem("role");
-  localStorage.removeItem("user");
-
-  // Update state immediately
-  setToken(null);
-  setRole(null);
-  setUser(null);
-  setIsProfileOpen(false);
-  setIsMenuOpen(false);
-
-  // Optionally redirect to login page
-  window.location.href = "/login";
-}
-  
   return (
-<nav
-  className={`fixed w-full top-0 z-50 transition-all duration-300 ease-in-out ${
-    visible ? "translate-y-0" : "-translate-y-full"
-  } ${
-    isScrolled
-      ? "bg-green/90 backdrop-blur-sm shadow-lg"
-      : "bg-green/70 backdrop-blur-sm"
-  }`}
->
-
+    <nav
+      className={`fixed w-full top-0 z-50 transition-all duration-300 ease-in-out ${
+        visible ? "translate-y-0" : "-translate-y-full"
+      } ${
+        isScrolled
+          ? "bg-green/90 backdrop-blur-sm shadow-lg"
+          : "bg-green/70 backdrop-blur-sm"
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex justify-between items-center py-4">
           <Link to="/" onClick={closeMobileMenu}>
@@ -235,17 +92,16 @@ function handleLogout() {
                 <button
                   onClick={() => setIsProfileOpen((v) => !v)}
                   className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-full p-2 hover:bg-white/20 transition-all duration-200 border border-white/20"
-                  disabled={userLoading}
                 >
                   <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
-                  {user?.avatar ? (
-                    <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-white font-semibold text-sm">{userLoading ? "…" : initials(user)}</span>
-                  )}
+                    {userProfile?.avatar ? (
+                      <img src={userProfile.avatar} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white font-semibold text-sm">{initials}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 pr-2">
-                    <span className="text-white font-medium text-sm">{userLoading ? "Loading…" : user.name}</span>
+                    <span className="text-white font-medium text-sm">{userProfile.name}</span>
                     <svg className={`w-4 h-4 text-white transition-transform duration-200 ${isProfileOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
@@ -256,15 +112,15 @@ function handleLogout() {
                   <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
                     <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
-                        {user?.avatar ? <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" /> : <span className="text-white font-semibold">{initials(user)}</span>}
+                        {userProfile?.avatar ? <img src={userProfile.avatar} alt="Profile" className="w-full h-full object-cover" /> : <span className="text-white font-semibold">{initials}</span>}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-800">{user.name}</p>
-                        <p className="text-sm text-gray-600">{user.email}</p>
+                        <p className="font-semibold text-gray-800">{userProfile.name}</p>
+                        <p className="text-sm text-gray-600">{userProfile.email}</p>
                       </div>
                     </div>
                     <div className="py-2">
-                      {user?.role === "worker" ? (
+                      {userProfile?.role === "worker" ? (
                         <>
                           <Link to="/worker/dashboard" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100" onClick={closeProfileMenu}>Worker Dashboard</Link>
                           <Link to="/worker/summary" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100" onClick={closeProfileMenu}>Summary</Link>
@@ -300,69 +156,62 @@ function handleLogout() {
           </div>
         </div>
 
-        {/* Mobile Dropdown */}
-        <div className={`lg:hidden overflow-hidden transition-all duration-300 ${isMenuOpen ? "max-h-screen opacity-100" : "max-h-0 opacity-0"}`}>
-          <div className="py-4 bg-black/95 backdrop-blur-sm rounded-lg mx-2 mb-4">
-            {/* Mobile User */}
+        {/* Mobile Menu */}
+        {isMenuOpen && (
+          <div className="lg:hidden bg-green/95 backdrop-blur-sm border-t border-white/20">
+            <div className="px-6 py-4">
+              <ul className="space-y-3 text-white font-medium">
+                <li><Link to="/" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>Home</Link></li>
+                <li><Link to="/About" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>About</Link></li>
+                <li><Link to="/Worker" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>Workers</Link></li>
+                <li><Link to="/blog" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>Blog</Link></li>
+                <li><Link to="/contactus" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>Contact</Link></li>
+              </ul>
+            </div>
+            
             <div className="px-6 pb-4 border-b border-white/20 mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
-                  {isAuthed && user?.avatar ? (
-                    <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+                  {isAuthed && userProfile?.avatar ? (
+                    <img src={userProfile.avatar} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-white font-semibold text-lg">{userLoading ? "…" : initials(user)}</span>
+                    <span className="text-white font-semibold text-lg">{initials}</span>
                   )}
                 </div>
                 <div>
-                  <p className="font-semibold text-white">{userLoading ? "Loading…" : isAuthed ? user.name : "Guest"}</p>
-                  <p className="text-sm text-gray-300">{isAuthed ? user.email : ""}</p>
+                  <p className="font-semibold text-white">{isAuthed ? userProfile.name : "Guest"}</p>
+                  <p className="text-sm text-gray-300">{isAuthed ? userProfile.email : ""}</p>
                 </div>
               </div>
             </div>
 
-            {/* Mobile Links */}
-            <ul className="flex flex-col space-y-4 px-6">
-              <li><Link to="/" className="block text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Home</Link></li>
-              <li><Link to="/About" className="block text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>About</Link></li>
-              <li><Link to="/Worker" className="block text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Workers</Link></li>
-              <li><Link to="/blog" className="block text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Blog</Link></li>
-              <li><Link to="/contactus" className="block text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Contact</Link></li>
-            </ul>
-
-            {/* Mobile Profile Menu */}
-            <div className="px-6 pt-4 border-t border-white/20 mt-4">
-              <div className="space-y-2">
-                {isAuthed ? (
-                  <>
-                    {user?.role === "worker" ? (
-                      <>
-                        <Link to="/worker/dashboard" className="flex items-center gap-3 text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Worker Dashboard</Link>
-                        <Link to="/worker/bookings" className="flex items-center gap-3 text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Booking Details</Link>
-                      </>
-                    ) : (
-                      <>
-                        <Link to="/profile/me" className="flex items-center gap-3 text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Profile</Link>
-                        <Link to="/settings" className="flex items-center gap-3 text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Settings</Link>
-                      </>
-                    )}
-
-                    <button className="flex items-center gap-3 text-red-400 hover:text-red-300 py-2 w-full text-left" onClick={() => { handleLogout(); closeMobileMenu(); }}>Sign Out</button>
-                  </>
-                ) : (
-                  <>
-                    <Link to="/login" className="flex items-center gap-3 text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Login</Link>
-                    <Link to="/register" className="flex items-center gap-3 text-white hover:text-yellow-400 py-2" onClick={closeMobileMenu}>Register</Link>
-                  </>
-                )}
-              </div>
+            {/* Mobile Auth Menu */}
+            <div className="px-6 pb-6">
+              {isAuthed ? (
+                <div className="space-y-2">
+                  {userProfile?.role === "worker" ? (
+                    <>
+                      <Link to="/worker/dashboard" className="block w-full text-left px-4 py-3 bg-white/10 rounded-lg hover:bg-white/20 transition-colors duration-200 text-white" onClick={closeMobileMenu}>Worker Dashboard</Link>
+                      <Link to="/worker/summary" className="block w-full text-left px-4 py-3 bg-white/10 rounded-lg hover:bg-white/20 transition-colors duration-200 text-white" onClick={closeMobileMenu}>Summary</Link>
+                    </>
+                  ) : (
+                    <>
+                      <Link to="/profile/me" className="block w-full text-left px-4 py-3 bg-white/10 rounded-lg hover:bg-white/20 transition-colors duration-200 text-white" onClick={closeMobileMenu}>Profile</Link>
+                      <Link to="/booking/details" className="block w-full text-left px-4 py-3 bg-white/10 rounded-lg hover:bg-white/20 transition-colors duration-200 text-white" onClick={closeMobileMenu}>Booking Details</Link>
+                    </>
+                  )}
+                  <button className="w-full text-left px-4 py-3 bg-red-500/20 rounded-lg hover:bg-red-500/30 transition-colors duration-200 text-red-300" onClick={handleLogout}>Sign Out</button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Link to="/login" className="block w-full text-center px-4 py-3 bg-yellow-400 text-green rounded-lg hover:bg-yellow-300 transition-colors duration-200 font-medium" onClick={closeMobileMenu}>Login</Link>
+                  <Link to="/register" className="block w-full text-center px-4 py-3 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors duration-200 font-medium" onClick={closeMobileMenu}>Register</Link>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        )}
       </div>
-
-      {/* Overlays */}
-      {isMenuOpen && <div className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={closeMobileMenu} />}
-      {isProfileOpen && <div className="hidden lg:block fixed inset-0 z-40" onClick={closeProfileMenu} />}
     </nav>
   );
 }
