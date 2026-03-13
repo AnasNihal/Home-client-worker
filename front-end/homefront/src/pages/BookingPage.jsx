@@ -1,7 +1,7 @@
 // src/pages/BookingPage.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { fetchWithAuth } from "../utlis/fetchWithAuth";
+import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 export default function BookingPage() {
   const { workerId } = useParams();

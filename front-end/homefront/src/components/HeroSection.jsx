@@ -12,7 +12,8 @@ export default function HeroSection() {
   const [maidImageRef, maidImageVisible] = useScrollAnimation(0.4);
 
   return (
-    <section className="max-w-7xl mx-auto px-6 pt-48 pb-20 grid md:grid-cols-2 gap-12 items-center min-h-[850px] font-sans overflow-hidden">
+    <section className="w-full bg-[#1c392e]">
+      <div className="max-w-7xl mx-auto px-6 pt-48 pb-20 grid md:grid-cols-2 gap-12 items-center min-h-[850px] font-sans overflow-hidden">
 
       {/* Left Column */}
       <div 
@@ -100,6 +101,7 @@ export default function HeroSection() {
             }`}
           />
         </div>
+      </div>
       </div>
     </section>
   );

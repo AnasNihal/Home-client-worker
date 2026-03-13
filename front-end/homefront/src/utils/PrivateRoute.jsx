@@ -1,3 +1,9 @@
+/**
+ * PrivateRoute Component
+ * Route protection component for authenticated users
+ * Redirects based on user role and authentication status
+ */
+
 import { Navigate } from "react-router-dom";
 
 const PrivateRoute = ({ role, children }) => {

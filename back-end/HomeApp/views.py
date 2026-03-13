@@ -6,7 +6,6 @@ from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Avg
-from django_ratelimit.decorators import ratelimit
 from .serializers  import (
     ProfessionSerializer,
     UserRegistrationSerializer,
@@ -26,7 +25,6 @@ from django.core.mail import send_mail
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@ratelimit(key='ip', rate='5/m', block=True)  # Limit to 5 login attempts per minute per IP
 def login(request):
     username = request.data.get('username')
     password = request.data.get('password')
@@ -48,7 +46,6 @@ def login(request):
     
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@ratelimit(key='ip', rate='3/m', block=True)  # Limit to 3 registrations per minute per IP
 def user_register(request):
     serializer = UserRegistrationSerializer(data = request.data)
     if serializer.is_valid():
@@ -89,7 +86,6 @@ def user_profile(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@ratelimit(key='ip', rate='3/m', block=True)  # Limit to 3 registrations per minute per IP
 def worker_register(request):
     serializer = WorkerRegistrationSerializer( data = request.data)
     if serializer.is_valid():

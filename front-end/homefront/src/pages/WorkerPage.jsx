@@ -10,7 +10,7 @@ export default function WorkerPage(){
             <TopSection
             title="Our expertise"
             subtitle="Cleaning Service Company"
-            bgColor="bg-[#f4faef]" // optional background override
+            bgColor="bg-[#1c392e]" // optional background override
             />
             <WorkersSection/>
             <BookingSection/>

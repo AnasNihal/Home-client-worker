@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { fetchWithAuth } from "../utlis/fetchWithAuth";
+import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();

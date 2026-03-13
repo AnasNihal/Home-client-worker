@@ -11,10 +11,6 @@ const setupAdmin = () => {
   
   // Store admin in localStorage
   localStorage.setItem("user", JSON.stringify(adminData));
-  console.log("Admin user setup complete!");
-  console.log("Username: admin");
-  console.log("Role: admin");
-  console.log("You can now login as admin");
 };
 
 // Auto-run setup

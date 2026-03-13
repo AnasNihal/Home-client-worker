@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom background colors for the application */
+.bg-green {
+  background-color: #F0FDF4;
+}
+
+.bg-green-50 {
+  background-color: #F0FDF4;
+}
+
 
 .maincolor{
     background-color: #1c392e;

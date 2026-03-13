@@ -1,7 +1,7 @@
 export default function BookingSection() {
   return (
     <>
-      <section className="w-full bg-primary px-6 py-20">
+      <section className="w-full bg-[#1c392e] px-6 py-20">
         {/* TITLES */}
         <div className="max-w-7xl mx-auto pt-16 pb-12">
           <p className="text-yellow text-sm font-semibold uppercase mb-4 tracking-widest">

@@ -1,6 +1,6 @@
 // src/pages/UserProfilePage.jsx
 import React, { useEffect, useState } from "react";
-import { getAuthData } from "../utlis/useHelper";
+import { getAuthData } from "../utils/useHelper";
 import { PencilIcon, UserIcon, MapPinIcon, PhoneIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 
 export default function UserProfilePage() {

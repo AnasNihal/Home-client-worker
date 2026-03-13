@@ -1,7 +1,7 @@
 // src/components/AdminRestrictedRoute.jsx
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { getAuthData } from '../utlis/useHelper';
+import { getAuthData } from '../utils/useHelper';
 
 const AdminRestrictedRoute = ({ children }) => {
   const { user } = getAuthData();

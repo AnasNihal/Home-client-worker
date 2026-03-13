@@ -1,6 +1,7 @@
 export default function TopSection({
   title,
   subtitle,
+  bgColor = 'bg-green',
   children,
   height = 'h-[500px]' // default to 500px height
 }) {
@@ -8,7 +9,7 @@ export default function TopSection({
     <section
       className={`
         relative
-        bg-green
+        ${bgColor}
         ${height}
         flex flex-col
         items-center

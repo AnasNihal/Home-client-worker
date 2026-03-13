@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { getAuthData } from "../utlis/useHelper";
+import { getAuthData } from "../utils/useHelper";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

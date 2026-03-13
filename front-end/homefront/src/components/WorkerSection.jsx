@@ -17,7 +17,6 @@ export default function WorkersSection() {
         const res = await fetch("http://127.0.0.1:8000/workers/");
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
-        console.log("Raw workers response:", data);  
         const normalized = (Array.isArray(data) ? data : []).map((w, idx) => {
           const id = w.id ?? w.pk ?? w.username ?? (w.name ? `worker-${w.name.toLowerCase().replace(/\s+/g, "-")}` : `worker-${idx}`);
           let image = w.image || w.image_url || w.profile_image || "";
@@ -59,7 +58,6 @@ export default function WorkersSection() {
             verified: !!w.verified,
           };
         });
-        console.log("Normalized workers:", normalized); 
         if (!cancelled) setWorkers(normalized);
       } catch (err) {
         console.error("Error fetching workers:", err);

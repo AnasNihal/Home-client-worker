@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchWithAuth } from "../utlis/fetchWithAuth";
+import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
@@ -151,8 +151,6 @@ const handleComplete = async (id) => {
               </div>
             </div>
 
-            {/* Action Buttons */}
-{/* Action Buttons */}
             <div className="flex gap-4">
               {b.status.toLowerCase() === "pending" && (
                 <button

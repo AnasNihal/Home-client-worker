@@ -47,7 +47,7 @@ export default function BlogPage() {
       <TopSection
         title="Our Blog"
         subtitle="Insights & Tips"
-        bgColor="bg-[#f4faef]"
+        bgColor="bg-[#1c392e]"
       />
 
       <section className="w-full bg-white py-20 px-6 sm:px-12 lg:px-24 overflow-hidden">

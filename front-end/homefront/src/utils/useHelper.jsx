@@ -3,6 +3,11 @@ import { fetchWithAuth } from "./fetchWithAuth";
 const API_URL = "http://127.0.0.1:8000"; // change to your backend URL
 
 // 🔑 Utility: Get token and user info
+/**
+ * Authentication Helper Functions
+ * Common utilities for user authentication and authorization
+ */
+
 export function getAuthData() {
   // use the short-lived JWT access token
   const token = localStorage.getItem("access") || null;

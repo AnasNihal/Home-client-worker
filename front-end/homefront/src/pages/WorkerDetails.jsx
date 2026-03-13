@@ -1,7 +1,7 @@
 // src/pages/WorkerDetails.jsx
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import {rateWorker, getAuthData, redirectToLogin } from "../utlis/useHelper";
+import {rateWorker, getAuthData, redirectToLogin} from "../utils/useHelper";
 
 export default function WorkerDetails() {
   const { workerId } = useParams();

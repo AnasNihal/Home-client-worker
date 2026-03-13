@@ -5,7 +5,7 @@ import {
   DocumentTextIcon, CogIcon, ArrowRightOnRectangleIcon, HomeIcon,
   PlusIcon, PencilIcon, MapPinIcon, PhoneIcon, EnvelopeIcon, StarIcon
 } from '@heroicons/react/24/outline';
-import { fetchWithAuth } from "../utlis/fetchWithAuth";
+import { fetchWithAuth } from "../utils/fetchWithAuth";
 import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = 'http://127.0.0.1:8000';

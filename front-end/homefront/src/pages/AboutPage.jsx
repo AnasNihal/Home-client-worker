@@ -30,7 +30,7 @@ export default function About() {
       <TopSection
         title="About Company"
         subtitle="Cleaning Service Company"
-        bgColor="bg-[#f4faef]"
+        bgColor="bg-[#1c392e]"
       />
       
       <section className="w-full bg-[#edf7ee] py-24 px-6 flex flex-col items-center text-center overflow-hidden">

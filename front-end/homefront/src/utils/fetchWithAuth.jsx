@@ -1,4 +1,10 @@
-// src/utils/fetchWithAuth.js
+/**
+ * Authentication wrapper for fetch API calls
+ * Handles token-based authentication for API requests
+ * @param {string} url - API endpoint URL
+ * @param {object} options - Fetch options object
+ * @returns {Promise} Fetch response with error handling
+ */
 export async function fetchWithAuth(url, options = {}) {
   let access = localStorage.getItem("access");
   let refresh = localStorage.getItem("refresh");
