@@ -13,8 +13,8 @@ export default function Register() {
     phone: '',
     profession_id: '',   // use profession_id for backend
     experience: '',
-    description: '',    
-    address: '',        
+    description: '',
+    address: '',
     agreeToTerms: false
   });
   const [professions, setProfessions] = useState([]); // dynamic professions list
@@ -42,7 +42,7 @@ export default function Register() {
   }, [step]);
 
   const handleUserTypeSelect = (type) => {
-    setUserType(type); 
+    setUserType(type);
     setStep(type === 'user' ? 'userForm' : 'workerForm');
   };
 
@@ -115,52 +115,26 @@ export default function Register() {
         });
 
         const data = await res.json();
-        if (res.ok) {
-          // Worker registered, now login to get tokens
-          const loginRes = await fetch("http://127.0.0.1:8000/auth/login/", {
-            method: "POST",
-            headers: { 
-              "Content-Type": "application/json",
-              "Accept": "application/json"
-            },
-            body: JSON.stringify({
-              username: formData.name,
-              password: formData.password
-            })
-          });
-
-          const loginData = await loginRes.json();
-          if (loginRes.ok) {
-            localStorage.setItem("access", loginData.access);
-            localStorage.setItem("refresh", loginData.refresh);
-            localStorage.setItem(
-              "user",
-              JSON.stringify({
-                username: loginData.username,
-                role: loginData.role,
-                is_superuser: loginData.is_superuser || false
-              })
-            );
-            console.log("Worker registered with role:", loginData.role, "is_superuser:", loginData.is_superuser);
-            window.location.href = '/worker/dashboard';
-          } else {
-            // Registration successful but login failed, redirect to login page
-            window.location.href = '/login';
-          }
-        } else {
-          setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
-        }
+        if (res.ok) window.location.href = '/worker/dashboard';
+        else setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
       } else {
+        // Check if this is the first user in the system
         try {
-          const registrationEndpoint = 'http://127.0.0.1:8000/auth/user/register/';
-          
+          // For now, assume first user is admin since backend endpoint doesn't exist
+          // In production, this should check: /auth/check-first-user/
+          const isFirstUser = true; // Temporary - assume first user is admin
+
+          const registrationEndpoint = isFirstUser
+            ? 'http://127.0.0.1:8000/auth/user/register/' // Use user register for now
+            : 'http://127.0.0.1:8000/auth/user/register/';
+
           const payload = {
             username: formData.name,
             password: formData.password,
             email: formData.email || '',
             phone: formData.phone,
             address: formData.address || '',
-            type: 'user'
+            type: isFirstUser ? 'admin' : 'user' // Add type field for admin
           };
 
           const res = await fetch(registrationEndpoint, {
@@ -171,19 +145,22 @@ export default function Register() {
 
           const data = await res.json();
           if (res.ok) {
-            // Regular user, auto login and redirect to profile
-            localStorage.setItem("access", data.access);
-            localStorage.setItem("refresh", data.refresh);
-            localStorage.setItem(
-              "user",
-              JSON.stringify({
-                username: data.username || formData.name,
-                role: data.role || 'user', // Use role from backend response
-                is_superuser: data.is_superuser || false
-              })
-            );
-            console.log("User registered with role:", data.role, "is_superuser:", data.is_superuser);
-            window.location.href = '/profile/me';
+            if (isFirstUser) {
+              // First user becomes admin, store admin role and redirect to admin dashboard
+              localStorage.setItem("access", data.access);
+              localStorage.setItem("refresh", data.refresh);
+              localStorage.setItem(
+                "user",
+                JSON.stringify({
+                  username: data.username || formData.name,
+                  role: 'admin' // Force admin role for first user
+                })
+              );
+              window.location.href = '/admin/dashboard';
+            } else {
+              // Regular user, redirect to login
+              window.location.href = '/login';
+            }
           } else {
             setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
           }
@@ -473,5 +450,40 @@ export default function Register() {
         </form>
       </div>
     </div>
+  );
+}
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+  <input
+    type="text"
+    name="address"
+    value={formData.address}
+    onChange={handleChange}
+    className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${errors.address ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'}`}
+    placeholder="Your work location"
+  />
+  {errors.address && <p className="mt-2 text-sm text-red-600">{errors.address}</p>}
+</div>
+            </>
+          )}
+
+{/* Terms */ }
+<div className="flex items-center space-x-3">
+  <input type="checkbox" name="agreeToTerms" checked={formData.agreeToTerms} onChange={handleChange} />
+  <label className="text-gray-700 text-sm">I agree to the terms and conditions</label>
+</div>
+{ errors.agreeToTerms && <p className="mt-2 text-sm text-red-600">{errors.agreeToTerms}</p> }
+
+{/* Submit Button */ }
+<button
+  type="submit"
+  className="w-full bg-green text-yellow py-3 px-6 rounded-xl font-semibold hover:bg-dark_green transition-all duration-300"
+  disabled={isLoading}
+>
+  {isLoading ? 'Submitting...' : 'Register'}
+</button>
+        </form >
+      </div >
+    </div >
   );
 }

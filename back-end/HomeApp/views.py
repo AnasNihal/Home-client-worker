@@ -37,8 +37,7 @@ def login(request):
         'refresh': str(refresh),
         'access': str(refresh.access_token),
         'role': user.role.lower(),   # 👈 always lower-case ("user"/"worker")  # pyright: ignore
-        'username': user.username,
-        'is_superuser': user.is_superuser  # Add superuser status
+        'username': user.username
     }
     return Response(payload, status=status.HTTP_200_OK)
 
@@ -49,22 +48,7 @@ def user_register(request):
     serializer = UserRegistrationSerializer(data = request.data)
     if serializer.is_valid():
         user  = serializer.save()
-        
-        # Double-check: ensure user is NOT a superuser
-        if user.is_superuser:
-            user.is_superuser = False
-            user.save()
-        
-        refresh = RefreshToken.for_user(user)
-        payload = {
-            'message': 'User Registered',
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-            'role': user.role.lower(),
-            'username': user.username,
-            'is_superuser': user.is_superuser  # Should always be False
-        }
-        return Response(payload,status=status.HTTP_200_OK)
+        return Response({'message':'User Registered'},status=status.HTTP_200_OK)
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
                     
 
@@ -103,13 +87,7 @@ def user_profile(request):
 def worker_register(request):
     serializer = WorkerRegistrationSerializer( data = request.data)
     if serializer.is_valid():
-       worker = serializer.save()
-       
-       # Double-check: ensure worker user is NOT a superuser
-       if worker.user.is_superuser:
-           worker.user.is_superuser = False
-           worker.user.save()
-       
+       serializer.save()
        return Response({'message':"Worker Registered"},status=status.HTTP_200_OK)
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
 
@@ -655,6 +633,20 @@ def cancel_booking(request, booking_id):
 def user_complete_booking(request, booking_id):
     """
     User marks their booking as completed
+    """
+    if request.user.role.lower() != "user":
+        return Response({"detail": "Only users can complete bookings"}, status=403)
+
+    booking = get_object_or_404(Booking, pk=booking_id, user=request.user)
+
+    if booking.status != "accepted":
+        return Response({"detail": "Booking must be accepted first"}, status=400)
+
+    booking.status = "completed"
+    booking.save()
+
+    return Response(BookingSerializer(booking, context={"request": request}).data, status=200)
+
     """
     if request.user.role.lower() != "user":
         return Response({"detail": "Only users can complete bookings"}, status=403)
