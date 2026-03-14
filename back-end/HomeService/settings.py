@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 import os
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,11 +34,16 @@ if ENV_FILE.exists():
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-ud%zbuh!g)7b@46erswlkg!lrv$oo&kw(s07l9&@^2@j2(4**1")
-
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "django-insecure-ud%zbuh!g)7b@46erswlkg!lrv$oo&kw(s07l9&@^2@j2(4**1"
+    else:
+        raise ImproperlyConfigured("The SECRET_KEY environment variable must be set in production.")
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",") if os.getenv("ALLOWED_HOSTS") else []
 
@@ -83,8 +89,9 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # For production, read from environment variable
-if os.getenv("FRONTEND_BASE_URL"):
-    CORS_ALLOWED_ORIGINS.append(os.getenv("FRONTEND_BASE_URL"))
+frontend_url = os.getenv("FRONTEND_BASE_URL")
+if frontend_url:
+    CORS_ALLOWED_ORIGINS.append(frontend_url)
 
 # Security settings for production
 if not DEBUG:
@@ -126,7 +133,7 @@ WSGI_APPLICATION = "HomeService.wsgi.application"
 if os.getenv("DATABASE_URL"):
     import dj_database_url
     DATABASES = {
-        'default': dj_database_url.parse(os.getenv("DATABASE_URL"))
+        'default': dj_database_url.parse(os.getenv("DATABASE_URL"))  # pyright: ignore
     }
 else:
     DATABASES = {
@@ -203,3 +210,25 @@ AUTH_USER_MODEL = 'HomeApp.CustomerUser'
 
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
+
+# Standard Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

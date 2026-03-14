@@ -633,18 +633,132 @@ const ServiceCard = ({ service, onEdit, onDelete }) => (
 );
 
 // Bookings Section
-const BookingsSection = () => (
-  <div className="space-y-8">
-    <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-8 shadow-xl">
-      <h3 className="text-2xl font-semibold text-white mb-8">Recent Bookings</h3>
-      <div className="text-center py-16">
-        <CalendarIcon className="h-20 w-20 text-white/30 mx-auto mb-6" />
-        <p className="text-white/60 text-lg mb-2">Booking management coming soon</p>
-        <p className="text-white/40">You'll be able to view and manage your bookings here</p>
+const BookingsSection = () => {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const fetchBookings = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetchWithAuth(`${API_BASE_URL}/worker/bookings/`);
+      if (!res) return;
+      if (!res.ok) throw new Error("Failed to fetch bookings");
+      const data = await res.json();
+      setBookings(data);
+    } catch (err) {
+      console.error(err);
+      setError("Error loading bookings");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBookings();
+  }, [fetchBookings]);
+
+  const handleUpdateStatus = async (bookingId, newStatus) => {
+    try {
+      const res = await fetchWithAuth(`${API_BASE_URL}/bookings/${bookingId}/update-status/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res || !res.ok) throw new Error("Failed to update status");
+      alert("Status updated successfully!");
+      fetchBookings();
+    } catch (err) {
+      console.error(err);
+      alert("Error updating status");
+    }
+  };
+
+  if (loading) return <div className="text-white text-center py-10">Loading bookings...</div>;
+  if (error) return <div className="text-red-400 text-center py-10">{error}</div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-8 shadow-xl">
+        <h3 className="text-2xl font-semibold text-white mb-6">Recent Bookings</h3>
+        {bookings.length === 0 ? (
+          <div className="text-center py-16">
+            <CalendarIcon className="h-20 w-20 text-white/30 mx-auto mb-6" />
+            <p className="text-white/60 text-lg mb-2">No bookings found</p>
+            <p className="text-white/40">You don't have any bookings yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {bookings.map((b) => (
+              <div key={b.id} className="bg-white/5 p-6 rounded-2xl border border-white/10 hover:bg-white/10 transition-all duration-300">
+                <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center text-[#0b2e28] font-bold text-xl shadow-lg">
+                      {b.user ? b.user.charAt(0).toUpperCase() : "U"}
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-white">{b.user}</h4>
+                      <p className="text-white/70 text-sm mb-1">{b.service.services}</p>
+                      <p className="text-white/80 text-sm">
+                        📅 {b.date} at {b.time}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex gap-2 mb-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        b.status === "pending" ? "bg-yellow-500/20 text-yellow-400" :
+                        b.status === "accepted" ? "bg-green-500/20 text-green-400" :
+                        "bg-red-500/20 text-red-400"
+                      }`}>
+                        {b.status.toUpperCase()}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        b.payment_status === "paid" ? "bg-green-500/20 text-green-400" :
+                        b.payment_status === "failed" ? "bg-red-500/20 text-red-400" :
+                        "bg-yellow-500/20 text-yellow-400"
+                      }`}>
+                        PAYMENT: {b.payment_status ? b.payment_status.toUpperCase() : "PENDING"}
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2">
+                      {b.status === "pending" && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateStatus(b.id, "accepted")}
+                            className="px-4 py-2 bg-green-500/20 text-green-400 hover:bg-green-500/40 font-semibold rounded-lg text-sm transition"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleUpdateStatus(b.id, "declined")}
+                            className="px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/40 font-semibold rounded-lg text-sm transition"
+                          >
+                            Decline
+                          </button>
+                        </>
+                      )}
+                      {b.status === "accepted" && (
+                        <button
+                          onClick={() => handleUpdateStatus(b.id, "completed")}
+                          className="px-4 py-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/40 font-semibold rounded-lg text-sm transition"
+                        >
+                          Mark Completed
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Earnings Section
 const EarningsSection = () => (

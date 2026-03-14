@@ -18,7 +18,7 @@ export default function ContactUs() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log("Form submitted:", formData);
+
     alert("Message sent! We'll get back to you soon.");
     setFormData({ name: "", email: "", phone: "", service: "general", message: "" });
   };

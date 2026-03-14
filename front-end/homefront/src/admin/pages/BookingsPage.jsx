@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAdminToken } from '../adminUtils';
 import AdminLayout from '../components/AdminLayout';
 
 const BookingsPage = () => {
@@ -21,7 +22,7 @@ const BookingsPage = () => {
   useEffect(() => {
     const fetchBookings = async () => {
       try {
-        const adminToken = localStorage.getItem('adminToken');
+        const adminToken = getAdminToken();
         if (!adminToken) {
           setError('Please login first');
           setLoading(false);
@@ -122,7 +123,7 @@ const BookingsPage = () => {
 
   const handleUpdateStatus = (booking, newStatus) => {
     // Implementation for updating booking status
-    console.log('Update booking status:', booking.id, 'to', newStatus);
+
   };
 
   const handleCancelBooking = (booking) => {
@@ -132,7 +133,7 @@ const BookingsPage = () => {
 
   const confirmCancel = () => {
     // Implementation for cancelling booking
-    console.log('Cancel booking:', bookingToCancel.id);
+
     setShowCancelModal(false);
     setBookingToCancel(null);
   };

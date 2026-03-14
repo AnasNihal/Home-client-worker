@@ -69,17 +69,22 @@ export default function Login() {
         localStorage.setItem("refresh", data.refresh);
         
         const userRole = data.role || "user";
+        const isSuperuser = data.is_superuser || false;
         
         localStorage.setItem(
           "user",
           JSON.stringify({
             username: data.username,
-            role: userRole
+            role: userRole,
+            is_superuser: isSuperuser
           })
         );
 
-        if (userRole === "admin") {
-          navigate("/admin/dashboard");
+        // Proper role-based redirect
+        console.log("Login successful - Role:", userRole, "Is Superuser:", isSuperuser);
+        
+        if (isSuperuser) {
+          navigate("/admin/login");
         } else if (userRole === "worker") {
           navigate("/worker/dashboard");
         } else {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAdminToken } from '../adminUtils';
 import AdminLayout from '../components/AdminLayout';
 
 const WorkersPage = () => {
@@ -20,7 +21,7 @@ const WorkersPage = () => {
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
-        const adminToken = localStorage.getItem('adminToken');
+        const adminToken = getAdminToken();
         if (!adminToken) {
           setError('Please login first');
           setLoading(false);
@@ -95,27 +96,24 @@ const WorkersPage = () => {
 
   const handleApproveWorker = (worker) => {
     // Implementation for approving worker
-    console.log('Approve worker:', worker);
+
   };
 
   const handleSuspendWorker = (worker) => {
     // Implementation for suspending worker
-    console.log('Suspend worker:', worker);
+
   };
 
   const handleRemoveBadge = (worker) => {
     // Implementation for removing worker badge
-    console.log('Remove badge from worker:', worker);
+
   };
 
-  const handleDeleteWorker = (worker) => {
-    setWorkerToDelete(worker);
-    setShowDeleteModal(true);
-  };
+
 
   const confirmDelete = () => {
     // Implementation for deleting worker
-    console.log('Delete worker:', workerToDelete);
+
     setShowDeleteModal(false);
     setWorkerToDelete(null);
   };

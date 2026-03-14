@@ -82,7 +82,6 @@ export async function rateWorker(workerId, ratingValue, reviewText = "") {
   }
 
   try {
-    console.log("Auth header →", `Bearer ${token}`);
     const response = await fetchWithAuth(`${API_URL}/workers/${workerId}/rate/`, {
       method: "POST",
       headers: {

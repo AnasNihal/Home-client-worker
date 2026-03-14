@@ -5,7 +5,7 @@ import { getAuthData } from '../utils/useHelper';
 
 const AdminRestrictedRoute = ({ children }) => {
   const { user } = getAuthData();
-  const location = useLocation();
+
 
   // If user is not logged in, redirect to login
   if (!user) {

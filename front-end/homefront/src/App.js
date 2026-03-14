@@ -3,7 +3,8 @@ import { BrowserRouter , Routes, Route , useLocation} from 'react-router-dom';
 import ScrollToTop from "./ScrollToTop"; 
 import PrivateRoute from './utils/PrivateRoute';
 import WorkerRestrictedRoute from './components/WorkerRestrictedRoute';
-import AdminRestrictedRoute from './components/AdminRestrictedRoute';
+import RoleBasedRoute from './utils/RoleBasedRoute';
+
 import Navbar from "./components/Navbar";
 import WorkerPage from './pages/WorkerPage';
 import Home from "./pages/Home";
@@ -24,13 +25,13 @@ import PaymentCancel from './pages/PaymentCancel';
 
 // Admin imports
 import AdminLogin from './admin/AdminLogin';
-import AdminLayout from './admin/components/AdminLayout';
+import AdminRouteGuard from './admin/AdminRouteGuard';
 import AdminProtectedRoute from './admin/AdminProtectedRoute';
 import Dashboard from './admin/pages/DashboardOverview';
 import Users from './admin/pages/UsersPage';
 import Workers from './admin/pages/WorkersPage';
 import Bookings from './admin/pages/BookingsPage';
-import Services from './admin/pages/Services';
+
 
 
 function App() {
@@ -84,56 +85,59 @@ function App() {
           } />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="profile/me" element={
-            <PrivateRoute role='user'>
+          <Route path="/profile/me" element={
+            <RoleBasedRoute allowedRoles={['user']}>
               <ProfilePage />
-            </PrivateRoute>
+            </RoleBasedRoute>
           } />
           <Route path="/worker/dashboard" element={
-            <PrivateRoute role='worker'>
+            <RoleBasedRoute allowedRoles={['worker']}>
               <WorkerDashboard />
-            </PrivateRoute>
+            </RoleBasedRoute>
           } />
           <Route path="/worker/summary" element={
-            <PrivateRoute>
-            <WorkerSummary role='worker'/>
-            </PrivateRoute>
-            } />
+            <RoleBasedRoute allowedRoles={['worker']}>
+              <WorkerSummary />
+            </RoleBasedRoute>
+          } />
           <Route path="/booking/:workerId" element={  
-             <PrivateRoute>
-            <BookingPage role='user'/>
-            </PrivateRoute>} />
+            <RoleBasedRoute allowedRoles={['user']}>
+              <BookingPage />
+            </RoleBasedRoute>} />
 
-          <Route path="/booking/details" element={<PrivateRoute>
-            <UserBookingsPage role='user'/>
-            </PrivateRoute>} />
+          <Route path="/booking/details" element={
+            <RoleBasedRoute allowedRoles={['user']}>
+              <UserBookingsPage />
+            </RoleBasedRoute>} />
 
-          <Route path="/payment/success" element={<PrivateRoute>
-            <PaymentSuccess role='user'/>
-          </PrivateRoute>} />
-          <Route path="/payment/cancel" element={<PrivateRoute>
-            <PaymentCancel role='user'/>
-          </PrivateRoute>} />
+          <Route path="/payment/success" element={
+            <RoleBasedRoute allowedRoles={['user']}>
+              <PaymentSuccess />
+            </RoleBasedRoute>} />
+          <Route path="/payment/cancel" element={
+            <RoleBasedRoute allowedRoles={['user']}>
+              <PaymentCancel />
+            </RoleBasedRoute>} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={
-            <AdminProtectedRoute>
+            <AdminRouteGuard>
               <Dashboard />
-            </AdminProtectedRoute>
+            </AdminRouteGuard>
           } />
           <Route path="/admin/users" element={
-            <AdminProtectedRoute>
+            <AdminRouteGuard>
               <Users />
-            </AdminProtectedRoute>
+            </AdminRouteGuard>
           } />
           <Route path="/admin/workers" element={
-            <AdminProtectedRoute>
+            <AdminRouteGuard>
               <Workers />
-            </AdminProtectedRoute>
+            </AdminRouteGuard>
           } />
           <Route path="/admin/bookings" element={
-            <AdminProtectedRoute>
+            <AdminRouteGuard>
               <Bookings />
-            </AdminProtectedRoute>
+            </AdminRouteGuard>
           } />
         </Routes>
       </main>

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test User Registration</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; }
+        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Registration Test</h1>
+    
+    <div class="test-section">
+        <h2>Test User Registration</h2>
+        <button onclick="testUserRegistration()">Register Test User</button>
+        <button onclick="testWorkerRegistration()">Register Test Worker</button>
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="clearStorage()">Clear Storage</button>
+        <div id="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Current Storage</h2>
+        <button onclick="showStorage()">Show Storage</button>
+        <div id="storage"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const resultDiv = document.getElementById('result');
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'result';
+            resultDiv.innerHTML += `<div class="${className}">${new Date().toLocaleTimeString()}: ${message}</div>`;
+        }
+
+        async function testUserRegistration() {
+            log('Testing user registration...');
+            
+            const userData = {
+                username: 'testuser_' + Date.now(),
+                password: 'testpass123',
+                email: 'test@example.com',
+                phone: '1234567890',
+                address: 'Test Address'
+            };
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/auth/user/register/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ User registered successfully!`, 'success');
+                    log(`Response: ${JSON.stringify(data, null, 2)}`);
+                    
+                    // Auto login
+                    const loginResponse = await fetch('http://127.0.0.1:8000/auth/login/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: userData.username,
+                            password: userData.password
+                        })
+                    });
+                    
+                    const loginData = await loginResponse.json();
+                    if (loginResponse.ok) {
+                        log(`✅ Auto login successful!`, 'success');
+                        log(`Login Response: ${JSON.stringify(loginData, null, 2)}`);
+                        
+                        // Store in localStorage like the app does
+                        localStorage.setItem("access", loginData.access);
+                        localStorage.setItem("refresh", loginData.refresh);
+                        localStorage.setItem("user", JSON.stringify({
+                            username: loginData.username,
+                            role: loginData.role,
+                            is_superuser: loginData.is_superuser
+                        }));
+                        
+                        log(`✅ Stored in localStorage`, 'success');
+                    } else {
+                        log(`❌ Auto login failed: ${JSON.stringify(loginData)}`, 'error');
+                    }
+                } else {
+                    log(`❌ Registration failed: ${JSON.stringify(data)}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testWorkerRegistration() {
+            log('Testing worker registration...');
+            
+            // First get professions
+            const professionsResponse = await fetch('http://127.0.0.1:8000/api/professions/');
+            const professionsData = await professionsResponse.json();
+            
+            if (professionsData.length === 0) {
+                log('❌ No professions available', 'error');
+                return;
+            }
+            
+            const workerData = {
+                username: 'testworker_' + Date.now(),
+                password: 'testpass123',
+                email: 'worker@example.com',
+                phone: '1234567890',
+                profession_id: professionsData[0].id,
+                experience: '2 years',
+                location: 'Test Location',
+                bio: 'Test bio'
+            };
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/auth/worker/register/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(workerData)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ Worker registered successfully!`, 'success');
+                    log(`Response: ${JSON.stringify(data, null, 2)}`);
+                    
+                    // Auto login
+                    const loginResponse = await fetch('http://127.0.0.1:8000/auth/login/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: workerData.username,
+                            password: workerData.password
+                        })
+                    });
+                    
+                    const loginData = await loginResponse.json();
+                    if (loginResponse.ok) {
+                        log(`✅ Worker auto login successful!`, 'success');
+                        log(`Login Response: ${JSON.stringify(loginData, null, 2)}`);
+                        
+                        // Store in localStorage
+                        localStorage.setItem("access", loginData.access);
+                        localStorage.setItem("refresh", loginData.refresh);
+                        localStorage.setItem("user", JSON.stringify({
+                            username: loginData.username,
+                            role: loginData.role,
+                            is_superuser: loginData.is_superuser
+                        }));
+                        
+                        log(`✅ Worker stored in localStorage`, 'success');
+                    } else {
+                        log(`❌ Worker auto login failed: ${JSON.stringify(loginData)}`, 'error');
+                    }
+                } else {
+                    log(`❌ Worker registration failed: ${JSON.stringify(data)}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        function testLogin() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            log(`Current stored user: ${JSON.stringify(user, null, 2)}`);
+            
+            if (user.is_superuser) {
+                log('⚠️ This user would be redirected to admin login', 'error');
+            } else if (user.role === 'worker') {
+                log('✅ This user would be redirected to worker dashboard', 'success');
+            } else if (user.role === 'user') {
+                log('✅ This user would be redirected to user profile', 'success');
+            } else {
+                log('❌ Unknown user role', 'error');
+            }
+        }
+
+        function showStorage() {
+            const storage = document.getElementById('storage');
+            storage.innerHTML = `
+                <h3>LocalStorage:</h3>
+                <pre>${JSON.stringify(localStorage, null, 2)}</pre>
+                <h3>SessionStorage:</h3>
+                <pre>${JSON.stringify(sessionStorage, null, 2)}</pre>
+            `;
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            log('✅ Storage cleared', 'success');
+        }
+    </script>
+</body>
+</html>

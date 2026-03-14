@@ -8,18 +8,18 @@ const AdminLayout = ({ children }) => {
   const location = useLocation();
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken');
+    const adminToken = sessionStorage.getItem('adminToken');
     if (adminToken) {
       // Parse token to get admin info (simplified)
-      setAdminData({
-        name: 'Admin',
-        email: 'admin@homeservice.com'
-      });
+      const adminUser = JSON.parse(sessionStorage.getItem('adminUser') || '{}');
+      setAdminData(adminUser);
     }
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken');
+    sessionStorage.removeItem('adminToken');
+    sessionStorage.removeItem('adminRefresh');
+    sessionStorage.removeItem('adminUser');
     navigate('/admin/login');
   };
 

@@ -7,14 +7,14 @@ const WorkerRestrictedRoute = ({ children }) => {
   const { user } = getAuthData();
   const location = useLocation();
 
-  // If user is not logged in, redirect to login
+  // If user is not logged in, allow access to public routes
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return children;
   }
 
-  // If user is admin, redirect to admin dashboard
-  if (user.role === 'admin') {
-    return <Navigate to="/admin/dashboard" replace />;
+  // If user is a superuser, redirect to admin login
+  if (user.is_superuser) {
+    return <Navigate to="/admin/login" replace />;
   }
 
   // If user is a worker, only allow dashboard routes
@@ -27,7 +27,7 @@ const WorkerRestrictedRoute = ({ children }) => {
     }
   }
 
-  // If user is not a worker or admin (regular user), allow all routes
+  // If user is not a worker or superuser (regular user), allow all routes
   return children;
 };
 

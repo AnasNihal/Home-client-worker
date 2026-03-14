@@ -5,13 +5,15 @@ import {rateWorker, getAuthData, redirectToLogin} from "../utils/useHelper";
 
 export default function WorkerDetails() {
   const { workerId } = useParams();
-  const navigate = useNavigate();
+
   const [worker, setWorker] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userRating, setUserRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const navigate = useNavigate();
 
   const { user } = getAuthData();
 
@@ -87,14 +89,14 @@ export default function WorkerDetails() {
     }
   };
 
-  // Booking handler (removed - only users can book, not workers)
-  // const handleBooking = () => {
-  //   if (!user || user.role !== "user") return redirectToLogin();
-  //   setRedirecting(true);
-  //   setTimeout(() => {
-  //     navigate(`/booking/${workerId}`, { replace: true });
-  //   }, 1200);
-  // };
+  // Booking handler 
+  const handleBooking = () => {
+    if (!user || user.role?.toLowerCase() !== "user") return redirectToLogin();
+    setRedirecting(true);
+    setTimeout(() => {
+      navigate(`/booking/${workerId}`, { replace: true });
+    }, 1200);
+  };
 
   if (loading) {
     return (
@@ -240,11 +242,19 @@ export default function WorkerDetails() {
                                 <span className="font-semibold text-green truncate">
                                   {rev.user__username || "User"}
                                 </span>
-                                <span className="text-yellow">
-                                  {"★".repeat(rev.rating) + "☆".repeat(5 - rev.rating)}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-yellow">
+                                    {"★".repeat(rev.rating)}
+                                  </span>
+                                  <span className="text-gray-300">
+                                    {"☆".repeat(5 - rev.rating)}
+                                  </span>
+                                  <span className="text-sm text-gray-600 ml-1">
+                                    ({rev.rating}/5)
+                                  </span>
+                                </div>
                               </div>
-                              {rev.review && <p className="text-gray-700">{rev.review}</p>}
+                              {rev.review && <p className="text-gray-700 mt-2">{rev.review}</p>}
                             </div>
                           ))}
                         </div>
@@ -256,11 +266,36 @@ export default function WorkerDetails() {
 
                   <div className="lg:col-span-4">
                     <div className="lg:sticky lg:top-28 space-y-5">
-                      {user?.role?.toLowerCase() === "user" && (
-                        <div className="rounded-2xl border border-black/5 bg-white p-6">
-                          <h2 className="text-lg font-bold text-green mb-4">Rate This Worker</h2>
+                      <div className="rounded-2xl border border-black/5 bg-white p-6">
+                        <h2 className="text-xl font-bold text-green mb-4">Book This Worker</h2>
+                        {user?.role?.toLowerCase() === "user" ? (
+                          <button
+                            onClick={handleBooking}
+                            disabled={redirecting}
+                            className="w-full bg-[#1c392e] text-white font-semibold py-3 rounded-xl hover:bg-[#1c392e]/90 transition-colors disabled:opacity-50"
+                          >
+                            {redirecting ? "Redirecting..." : "Book Now"}
+                          </button>
+                        ) : (
+                          <div className="text-center py-2">
+                            <p className="text-gray-600 text-sm mb-3">
+                              Please log in as a user to book this worker
+                            </p>
+                            <Link
+                              to="/login"
+                              className="inline-block px-4 py-2 bg-yellow text-green font-semibold rounded-lg hover:bg-yellow/90 transition-colors"
+                            >
+                              Login to Book
+                            </Link>
+                          </div>
+                        )}
+                      </div>
 
-                          {!showReviewForm ? (
+                      <div className="rounded-2xl border border-black/5 bg-white p-6">
+                        <h2 className="text-lg font-bold text-green mb-4">Rate This Worker</h2>
+
+                        {user?.role?.toLowerCase() === "user" ? (
+                          !showReviewForm ? (
                             <button
                               onClick={() => setShowReviewForm(true)}
                               className="w-full bg-yellow text-green font-semibold py-3 rounded-xl hover:bg-yellow/90 transition-colors"
@@ -310,9 +345,21 @@ export default function WorkerDetails() {
                                 </button>
                               </div>
                             </div>
-                          )}
-                        </div>
-                      )}
+                          )
+                        ) : (
+                          <div className="text-center py-4">
+                            <p className="text-gray-600 text-sm mb-3">
+                              Please log in as a user to rate this worker
+                            </p>
+                            <Link
+                              to="/login"
+                              className="inline-block px-4 py-2 bg-yellow text-green font-semibold rounded-lg hover:bg-yellow/90 transition-colors"
+                            >
+                              Login to Rate
+                            </Link>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

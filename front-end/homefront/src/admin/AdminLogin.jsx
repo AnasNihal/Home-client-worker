@@ -36,10 +36,10 @@ const AdminLogin = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Store admin token separately from user token
-        localStorage.setItem('adminToken', data.access);
-        localStorage.setItem('adminRefresh', data.refresh);
-        localStorage.setItem('adminUser', JSON.stringify(data.user));
+        // Store admin token in sessionStorage (not localStorage) for session-based auth
+        sessionStorage.setItem('adminToken', data.access);
+        sessionStorage.setItem('adminRefresh', data.refresh);
+        sessionStorage.setItem('adminUser', JSON.stringify(data.user));
         navigate('/admin/dashboard');
       } else {
         setError(data.error || 'Login failed');

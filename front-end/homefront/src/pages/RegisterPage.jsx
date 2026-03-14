@@ -115,18 +115,44 @@ export default function Register() {
         });
 
         const data = await res.json();
-        if (res.ok) window.location.href = '/worker/dashboard';
-        else setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
+        if (res.ok) {
+          // Worker registered, now login to get tokens
+          const loginRes = await fetch("http://127.0.0.1:8000/auth/login/", {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              "Accept": "application/json"
+            },
+            body: JSON.stringify({
+              username: formData.name,
+              password: formData.password
+            })
+          });
+
+          const loginData = await loginRes.json();
+          if (loginRes.ok) {
+            localStorage.setItem("access", loginData.access);
+            localStorage.setItem("refresh", loginData.refresh);
+            localStorage.setItem(
+              "user",
+              JSON.stringify({
+                username: loginData.username,
+                role: loginData.role,
+                is_superuser: loginData.is_superuser || false
+              })
+            );
+            console.log("Worker registered with role:", loginData.role, "is_superuser:", loginData.is_superuser);
+            window.location.href = '/worker/dashboard';
+          } else {
+            // Registration successful but login failed, redirect to login page
+            window.location.href = '/login';
+          }
+        } else {
+          setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
+        }
       } else {
-        // Check if this is the first user in the system
         try {
-          // For now, assume first user is admin since backend endpoint doesn't exist
-          // In production, this should check: /auth/check-first-user/
-          const isFirstUser = true; // Temporary - assume first user is admin
-          
-          const registrationEndpoint = isFirstUser 
-            ? 'http://127.0.0.1:8000/auth/user/register/' // Use user register for now
-            : 'http://127.0.0.1:8000/auth/user/register/';
+          const registrationEndpoint = 'http://127.0.0.1:8000/auth/user/register/';
           
           const payload = {
             username: formData.name,
@@ -134,7 +160,7 @@ export default function Register() {
             email: formData.email || '',
             phone: formData.phone,
             address: formData.address || '',
-            type: isFirstUser ? 'admin' : 'user' // Add type field for admin
+            type: 'user'
           };
 
           const res = await fetch(registrationEndpoint, {
@@ -145,22 +171,19 @@ export default function Register() {
 
           const data = await res.json();
           if (res.ok) {
-            if (isFirstUser) {
-              // First user becomes admin, store admin role and redirect to admin dashboard
-              localStorage.setItem("access", data.access);
-              localStorage.setItem("refresh", data.refresh);
-              localStorage.setItem(
-                "user",
-                JSON.stringify({
-                  username: data.username || formData.name,
-                  role: 'admin' // Force admin role for first user
-                })
-              );
-              window.location.href = '/admin/dashboard';
-            } else {
-              // Regular user, redirect to login
-              window.location.href = '/login';
-            }
+            // Regular user, auto login and redirect to profile
+            localStorage.setItem("access", data.access);
+            localStorage.setItem("refresh", data.refresh);
+            localStorage.setItem(
+              "user",
+              JSON.stringify({
+                username: data.username || formData.name,
+                role: data.role || 'user', // Use role from backend response
+                is_superuser: data.is_superuser || false
+              })
+            );
+            console.log("User registered with role:", data.role, "is_superuser:", data.is_superuser);
+            window.location.href = '/profile/me';
           } else {
             setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
           }

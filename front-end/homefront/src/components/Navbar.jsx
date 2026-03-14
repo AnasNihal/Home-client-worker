@@ -10,7 +10,7 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   // Get user data from localStorage
-  const { user, token } = getAuthData();
+  const { user } = getAuthData();
   const [userProfile, setUserProfile] = useState(null);
 
   // Set user profile from localStorage

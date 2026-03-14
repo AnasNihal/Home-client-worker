@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { getAdminToken } from '../adminUtils';
+import AdminLayout from '../components/AdminLayout';
 // import { 
 //   EyeIcon, 
 //   PencilSquareIcon, 
@@ -17,7 +19,7 @@ const Services = () => {
   const fetchServices = async () => {
     try {
       setLoading(true);
-      const adminToken = localStorage.getItem('adminToken');
+      const adminToken = getAdminToken();
       const response = await fetch('http://127.0.0.1:8000/api/superadmin/services/', {
         headers: {
           'Authorization': `Bearer ${adminToken}`,
@@ -40,7 +42,7 @@ const Services = () => {
 
   const handleToggleService = async (serviceId) => {
     try {
-      const adminToken = localStorage.getItem('adminToken');
+      const adminToken = getAdminToken();
       const response = await fetch(`http://127.0.0.1:8000/api/superadmin/services/${serviceId}/toggle/`, {
         method: 'PATCH',
         headers: {
@@ -65,7 +67,7 @@ const Services = () => {
     }
 
     try {
-      const adminToken = localStorage.getItem('adminToken');
+      const adminToken = getAdminToken();
       const response = await fetch(`http://127.0.0.1:8000/api/superadmin/services/${serviceId}/`, {
         method: 'DELETE',
         headers: {

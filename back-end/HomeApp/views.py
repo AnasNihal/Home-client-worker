@@ -1,8 +1,7 @@
-from django.shortcuts import render,get_object_or_404
+from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view,permission_classes,parser_classes
 from rest_framework.permissions import IsAuthenticated,AllowAny
 from rest_framework.response import Response 
-from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Avg
@@ -13,7 +12,6 @@ from .serializers  import (
     WorkerRegistrationSerializer,
     WorkerServiceSerializer,
     WorkerSerializer,
-    LoginSerializer,
     BookingSerializer
     )
 from rest_framework import status
@@ -38,8 +36,9 @@ def login(request):
     payload = {
         'refresh': str(refresh),
         'access': str(refresh.access_token),
-        'role': user.role.lower(),   # 👈 always lower-case ("user"/"worker")
-        'username': user.username
+        'role': user.role.lower(),   # 👈 always lower-case ("user"/"worker")  # pyright: ignore
+        'username': user.username,
+        'is_superuser': user.is_superuser  # Add superuser status
     }
     return Response(payload, status=status.HTTP_200_OK)
 
@@ -50,13 +49,28 @@ def user_register(request):
     serializer = UserRegistrationSerializer(data = request.data)
     if serializer.is_valid():
         user  = serializer.save()
-        return Response({'message':'User Registered'},status=status.HTTP_200_OK)
+        
+        # Double-check: ensure user is NOT a superuser
+        if user.is_superuser:
+            user.is_superuser = False
+            user.save()
+        
+        refresh = RefreshToken.for_user(user)
+        payload = {
+            'message': 'User Registered',
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'role': user.role.lower(),
+            'username': user.username,
+            'is_superuser': user.is_superuser  # Should always be False
+        }
+        return Response(payload,status=status.HTTP_200_OK)
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
                     
 
-@api_view(['GET','PUT'])
-@permission_classes([IsAuthenticated])
-@parser_classes([MultiPartParser, FormParser]) 
+@api_view(['GET','PUT'])  # pyright: ignore
+@permission_classes([IsAuthenticated])  # pyright: ignore
+@parser_classes([MultiPartParser, FormParser])   # pyright: ignore
 def user_profile(request):
     if request.user.is_anonymous:
         return Response({"detail": "Authentication required"}, status=401)
@@ -89,14 +103,20 @@ def user_profile(request):
 def worker_register(request):
     serializer = WorkerRegistrationSerializer( data = request.data)
     if serializer.is_valid():
-       serializer.save()
+       worker = serializer.save()
+       
+       # Double-check: ensure worker user is NOT a superuser
+       if worker.user.is_superuser:
+           worker.user.is_superuser = False
+           worker.user.save()
+       
        return Response({'message':"Worker Registered"},status=status.HTTP_200_OK)
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
 
 
 
-@api_view(['GET', 'PUT'])
-@permission_classes([IsAuthenticated])
+@api_view(['GET', 'PUT'])  # pyright: ignore
+@permission_classes([IsAuthenticated])  # pyright: ignore
 def worker_dashboard(request):
     if request.user.role.lower() != "worker":
         return Response({"detail": "Only workers can access this page"}, status=403)
@@ -113,7 +133,7 @@ def worker_dashboard(request):
         bookings = Booking.objects.filter(worker=worker).select_related("user", "service")
         bookings_data = [
             {
-                "id": b.id,
+                "id": b.id,  # pyright: ignore
                 "user_name": b.user.username,
                 "services": [b.service.services],  # corrected field name
                 "date": b.date,
@@ -164,8 +184,8 @@ def add_service(request):
     return Response(serializer.errors, status=400)
 
 
-@api_view(['PUT', 'PATCH', 'DELETE'])
-@permission_classes([IsAuthenticated])
+@api_view(['PUT', 'PATCH', 'DELETE'])  # pyright: ignore
+@permission_classes([IsAuthenticated])  # pyright: ignore
 def edit_service(request, service_id):
     if request.user.role.lower() != "worker":
         return Response({'detail': 'Only workers can modify services'}, status=403)
@@ -187,7 +207,7 @@ def edit_service(request, service_id):
 # ✅ List all workers with ratings included
 @api_view(['GET'])
 def worker_list(request):
-    workers = Worker.objects.all()
+    workers = Worker.objects.select_related('user', 'profession').all()
     serializer = WorkerSerializer(workers, many=True, context={'request': request})
     return Response(serializer.data)
 
@@ -203,7 +223,7 @@ def worker_details(request, pk):
     reviews = WorkerRating.objects.filter(worker=worker).select_related("user").order_by("-created_at")
     reviews_list = [
         {
-            "id": r.id,
+            "id": r.id,  # pyright: ignore
             "user": r.user.username,
             "rating": r.rating,
             "review": r.review,
@@ -285,53 +305,33 @@ def profession_list(request):
 from datetime import datetime
 
 from django.conf import settings
+from django.http import HttpResponse # For webhook
 from decimal import Decimal
 import stripe
+from django.views.decorators.csrf import csrf_exempt
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def create_stripe_checkout_session(request, worker_id):
-    """Create a Stripe Checkout Session for a booking WITHOUT creating the Booking.
-
-    The booking will be created only after payment succeeds (see confirm_stripe_payment).
-    """
+def create_stripe_checkout_session(request, booking_id):
+    """Create a Stripe Checkout Session for an existing Pending Booking"""
     if request.user.role.lower() != "user":
-        return Response({"detail": "Only users can book services"}, status=403)
+        return Response({"detail": "Only users can pay for bookings"}, status=403)
 
-    worker = get_object_or_404(Worker, pk=worker_id)
-    service_id = request.data.get("service_id")
-    date_str = request.data.get("date")
-    time = request.data.get("time")
-
-    if not service_id or not date_str:
-        return Response({"detail": "Service and date must be provided"}, status=400)
-
-    try:
-        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return Response({"detail": "Invalid date format. Use YYYY-MM-DD."}, status=400)
-
-    conflict = Booking.objects.filter(
-        worker=worker,
-        date=date_obj,
-        status__in=["pending", "accepted"],
-    ).exists()
-    if conflict:
-        return Response(
-            {"detail": f"{worker.name} is already booked on {date_obj}. Please choose another day."},
-            status=400,
-        )
-
-    service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
-    base_amount = Decimal(service.price or 0)
+    booking = get_object_or_404(Booking, pk=booking_id, user=request.user)
+    
+    if booking.payment_status == "paid":
+        return Response({"detail": "Booking is already paid"}, status=400)
 
     if not settings.STRIPE_SECRET_KEY:
         return Response({"detail": "Stripe is not configured. Add STRIPE_SECRET_KEY."}, status=500)
 
     stripe.api_key = settings.STRIPE_SECRET_KEY
-    amount_paise = int(base_amount * 100)
+    amount_paise = int(booking.amount * 100)
 
+    # Note: We don't create the Payment record yet, we'll do that in the webhook
+    # or upon confirmation.
+    
     session = stripe.checkout.Session.create(
         mode="payment",
         line_items=[
@@ -339,7 +339,7 @@ def create_stripe_checkout_session(request, worker_id):
                 "price_data": {
                     "currency": "inr",
                     "product_data": {
-                        "name": f"Booking - {service.services}",
+                        "name": f"Booking - {booking.service.services}",
                     },
                     "unit_amount": amount_paise,
                 },
@@ -349,15 +349,13 @@ def create_stripe_checkout_session(request, worker_id):
         success_url=f"{settings.FRONTEND_BASE_URL}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{settings.FRONTEND_BASE_URL}/payment/cancel",
         metadata={
-            "payment_mode": "now",
+            "booking_id": str(booking.id),
             "user_id": str(request.user.id),
-            "worker_id": str(worker.id),
-            "service_id": str(service.id),
-            "date": str(date_obj),
-            "time": str(time or ""),
-            "amount": str(base_amount),
         },
     )
+
+    booking.stripe_checkout_session_id = session.id
+    booking.save(update_fields=["stripe_checkout_session_id"])
 
     return Response({"checkout_url": session.url, "session_id": session.id}, status=200)
 
@@ -380,8 +378,8 @@ def create_booking(request, worker_id):
     if not service_id or not date_str:
         return Response({"detail": "Service and date must be provided"}, status=400)
 
-    if payment_mode not in ["later"]:
-        return Response({"detail": "Invalid payment_mode. Use 'later'."}, status=400)
+    if payment_mode not in ["later", "now"]:
+        return Response({"detail": "Invalid payment_mode. Use 'later' or 'now'."}, status=400)
 
     # Convert date string to Python date object
     try:
@@ -435,6 +433,7 @@ def create_booking(request, worker_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def confirm_stripe_payment(request):
+    """Called by frontend on success_url to retrieve booking state"""
     session_id = request.query_params.get("session_id")
     if not session_id:
         return Response({"detail": "session_id is required"}, status=400)
@@ -446,71 +445,123 @@ def confirm_stripe_payment(request):
 
     try:
         session = stripe.checkout.Session.retrieve(session_id)
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Stripe session retrieve failed: {str(e)}")
         return Response({"detail": "Failed to retrieve Stripe session"}, status=400)
 
     metadata = session.metadata if getattr(session, "metadata", None) else {}
-    payment_mode = (metadata.get("payment_mode") or "").lower()
-    if payment_mode != "now":
-        return Response({"detail": "Invalid session for payment confirmation"}, status=400)
+    booking_id = metadata.get("booking_id")
 
-    if str(metadata.get("user_id")) != str(request.user.id):
-        return Response({"detail": "This payment session does not belong to the current user"}, status=403)
+    if not booking_id:
+        return Response({"detail": "Invalid session configuration"}, status=400)
 
-    if session.payment_status != "paid":
-        return Response({"detail": "Payment not completed"}, status=400)
+    booking = get_object_or_404(Booking, id=booking_id, user=request.user)
 
-    existing = Booking.objects.filter(stripe_checkout_session_id=session.id, user=request.user).first()
-    if existing:
-        if existing.payment_status != "paid":
-            existing.payment_status = "paid"
-            existing.save(update_fields=["payment_status"])
-        return Response(BookingSerializer(existing, context={"request": request}).data, status=200)
-
-    worker_id = metadata.get("worker_id")
-    service_id = metadata.get("service_id")
-    date_str = metadata.get("date")
-    time = metadata.get("time")
-
-    if not worker_id or not service_id or not date_str:
-        return Response({"detail": "Booking metadata missing in session"}, status=400)
-
-    try:
-        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return Response({"detail": "Invalid date metadata"}, status=400)
-
-    worker = get_object_or_404(Worker, pk=worker_id)
-    service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
-
-    conflict = Booking.objects.filter(
-        worker=worker,
-        date=date_obj,
-        status__in=["pending", "accepted"],
-    ).exists()
-    if conflict:
-        return Response(
-            {"detail": f"{worker.name} is already booked on {date_obj}. Please choose another day."},
-            status=409,
-        )
-
-    base_amount = Decimal(service.price or 0)
-
-    booking = Booking.objects.create(
-        user=request.user,
-        worker=worker,
-        service=service,
-        date=date_obj,
-        time=time,
-        status="pending",
-        payment_mode="now",
-        payment_status="paid",
-        amount=base_amount,
-        pay_later_fee=Decimal("0.00"),
-        stripe_checkout_session_id=session.id,
-    )
+    if session.payment_status == "paid":
+        # The webhook might have beaten us to this, but we'll check and update just in case.
+        if booking.payment_status != "paid":
+            booking.payment_status = "paid"
+            booking.save(update_fields=["payment_status"])
+            
+            # Create payment record as a fallback if webhook is slow
+            from django.utils import timezone
+            from .models import Payment
+            Payment.objects.get_or_create(
+                booking=booking,
+                stripe_session_id=session.id,
+                defaults={
+                    "user": booking.user,
+                    "worker": booking.worker,
+                    "amount": booking.amount,
+                    "currency": session.currency or "inr",
+                    "payment_status": "paid",
+                    "stripe_payment_intent_id": session.payment_intent,
+                    "paid_at": timezone.now()
+                }
+            )
 
     return Response(BookingSerializer(booking, context={"request": request}).data, status=200)
+
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def stripe_webhook(request):
+    payload = request.body
+    sig_header = request.headers.get("Stripe-Signature", "")
+    webhook_secret = getattr(settings, "STRIPE_WEBHOOK_SECRET", None)
+
+    if not webhook_secret:
+        return HttpResponse(status=400)
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, webhook_secret
+        )
+    except ValueError as e:
+        return HttpResponse(status=400)
+    except stripe.error.SignatureVerificationError as e:  # pyright: ignore
+        return HttpResponse(status=400)
+
+    from django.utils import timezone
+    from .models import Payment
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        
+        booking_id = session.get("metadata", {}).get("booking_id")
+        if booking_id:
+            try:
+                booking = Booking.objects.get(id=booking_id)
+                booking.payment_status = "paid"
+                # If pay later was selected but then paid, update payment mode to now
+                booking.payment_mode = "now" 
+                booking.save(update_fields=["payment_status", "payment_mode"])
+                
+                Payment.objects.update_or_create(
+                    booking=booking,
+                    stripe_session_id=session.get("id"),
+                    defaults={
+                        "user": booking.user,
+                        "worker": booking.worker,
+                        "amount": booking.amount,
+                        "currency": session.get("currency", "inr"),
+                        "payment_status": "paid",
+                        "stripe_payment_intent_id": session.get("payment_intent"),
+                        "paid_at": timezone.now()
+                    }
+                )
+            except Booking.DoesNotExist:
+                pass
+                
+    elif event["type"] == "payment_intent.payment_failed":
+        intent = event["data"]["object"]
+        # Find session associated with this intent to get metadata
+        try:
+            sessions = stripe.checkout.Session.list(payment_intent=intent.get("id"), limit=1)
+            if sessions.data:
+                session = sessions.data[0]
+                booking_id = session.get("metadata", {}).get("booking_id")
+                if booking_id:
+                    booking = Booking.objects.get(id=booking_id)
+                    booking.payment_status = "failed"
+                    booking.save(update_fields=["payment_status"])
+                    
+                    Payment.objects.update_or_create(
+                        booking=booking,
+                        stripe_session_id=session.get("id"),
+                        defaults={
+                            "user": booking.user,
+                            "worker": booking.worker,
+                            "amount": booking.amount,
+                            "payment_status": "failed",
+                            "stripe_payment_intent_id": intent.get("id"),
+                        }
+                    )
+        except Exception:
+            pass
+
+    return HttpResponse(status=200)
 
 
 
@@ -593,7 +644,7 @@ def cancel_booking(request, booking_id):
         "Booking Canceled",
         f"The booking for {booking.service} by {booking.user.username} has been canceled.",
         "noreply@homeservice.com",
-        [booking.worker.user.email],
+        [booking.worker.user.email],  # pyright: ignore
         fail_silently=True,
     )
 

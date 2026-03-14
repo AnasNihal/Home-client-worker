@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAdminToken } from '../adminUtils';
 import AdminLayout from '../components/AdminLayout';
 
 const DashboardOverview = () => {
@@ -11,7 +12,7 @@ const DashboardOverview = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const adminToken = localStorage.getItem('adminToken');
+        const adminToken = getAdminToken();
         if (!adminToken) {
           setError('Please login first');
           setLoading(false);

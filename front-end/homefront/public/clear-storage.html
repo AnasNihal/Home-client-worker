@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Storage</title>
+</head>
+<body>
+    <h1>Clearing Storage...</h1>
+    <script>
+        // Clear all authentication data
+        localStorage.removeItem('access');
+        localStorage.removeItem('refresh');
+        localStorage.removeItem('user');
+        
+        // Clear admin session storage
+        sessionStorage.removeItem('adminToken');
+        sessionStorage.removeItem('adminRefresh');
+        sessionStorage.removeItem('adminUser');
+        
+        // Also clear any remaining admin localStorage
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminRefresh');
+        localStorage.removeItem('adminUser');
+        
+        alert('All storage cleared! Admin sessions are now temporary.');
+        window.location.href = 'http://localhost:3000';
+    </script>
+</body>
+</html>

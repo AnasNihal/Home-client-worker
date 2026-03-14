@@ -74,8 +74,8 @@ export default function BookingPage() {
         return;
       }
 
-      alert("Booking confirmed! (Pay later adds ₹20)");
-      navigate("/");
+      alert("Booking confirmed! (Payment is pending)");
+      navigate("/user/bookings");
     } catch (err) {
       console.error(err);
       alert("Error creating booking");
@@ -93,35 +93,54 @@ export default function BookingPage() {
 
     setLoading(true);
     try {
-      const res = await fetchWithAuth(
-        `http://127.0.0.1:8000/payments/stripe/checkout/${workerId}/`,
+      // 1. Create the booking FIRST
+      const bookRes = await fetchWithAuth(`http://127.0.0.1:8000/workers/${workerId}/book/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          service_id: selectedService.id,
+          date,
+          time,
+          payment_mode: "now",
+        }),
+      });
+
+      if (!bookRes) return;
+      const bookData = await bookRes.json();
+
+      if (!bookRes.ok) {
+        alert(bookData.detail || "Failed to create booking");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Start Stripe Checkout using the returned booking ID
+      const stripeRes = await fetchWithAuth(
+        `http://127.0.0.1:8000/payments/stripe/checkout/${bookData.id}/`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            service_id: selectedService.id,
-            date,
-            time,
-          }),
         }
       );
 
-      if (!res) return;
+      if (!stripeRes) return;
+      const stripeData = await stripeRes.json();
 
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.detail || "Failed to start Stripe Checkout");
+      if (!stripeRes.ok) {
+        alert(stripeData.detail || "Failed to start Stripe Checkout");
         return;
       }
 
-      if (!data.checkout_url) {
+      if (!stripeData.checkout_url) {
         alert("Stripe checkout URL missing. Please check backend Stripe configuration.");
         return;
       }
 
-      window.location.href = data.checkout_url;
+      window.location.href = stripeData.checkout_url;
     } catch (err) {
       console.error(err);
       alert("Error starting Stripe Checkout");

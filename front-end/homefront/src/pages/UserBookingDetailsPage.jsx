@@ -94,6 +94,41 @@ const handleComplete = async (id) => {
     }
   };
 
+  const handlePayNow = async (bookingId) => {
+    try {
+      setLoading(true);
+      const res = await fetchWithAuth(
+        `${API_BASE_URL}/payments/stripe/checkout/${bookingId}/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!res) return;
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || "Failed to start Stripe Checkout");
+        return;
+      }
+
+      if (!data.checkout_url) {
+        alert("Stripe checkout URL missing.");
+        return;
+      }
+
+      window.location.href = data.checkout_url;
+    } catch (err) {
+      console.error(err);
+      alert("Error starting Stripe Checkout");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadBookings();
   }, [loadBookings]);
@@ -134,24 +169,46 @@ const handleComplete = async (id) => {
                 <p>
                   <strong>Date:</strong> {b.date} at {b.time}
                 </p>
-                <p className="mt-2">
+                <p className="mt-2 text-sm">
                   <strong>Status:</strong>{" "}
                   <span
-                    className={`ml-2 px-3 py-1 rounded-full text-l font-semibold text-green ${
+                    className={`ml-1 px-3 py-1 rounded-full font-semibold ${
                       b.status === "pending"
-                        ? "bg-yellow-500"
+                        ? "bg-yellow-200 text-yellow-800"
                         : b.status === "accepted"
-                        ? "bg-green-600"
-                        : "bg-red-600"
+                        ? "bg-green-200 text-green-800"
+                        : "bg-red-200 text-red-800"
                     }`}
                   >
                     {b.status}
                   </span>
                 </p>
+                <p className="mt-2 text-sm">
+                  <strong>Payment Status:</strong>{" "}
+                  <span
+                    className={`ml-1 px-3 py-1 rounded-full font-semibold ${
+                      b.payment_status === "paid"
+                        ? "bg-green-200 text-green-800"
+                        : b.payment_status === "failed"
+                        ? "bg-red-200 text-red-800"
+                        : "bg-yellow-200 text-yellow-800"
+                    }`}
+                  >
+                    {b.payment_status || "pending"}
+                  </span>
+                </p>
               </div>
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex gap-4 items-center">
+              {b.payment_status !== "paid" && (
+                <button
+                  onClick={() => handlePayNow(b.id)}
+                  className="px-6 py-2 bg-yellow hover:bg-yellow-500 text-green font-bold rounded-lg shadow-sm"
+                >
+                  Pay Now
+                </button>
+              )}
               {b.status.toLowerCase() === "pending" && (
                 <button
                   onClick={() => handleCancel(b.id)}
