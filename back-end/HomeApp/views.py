@@ -646,18 +646,3 @@ def user_complete_booking(request, booking_id):
     booking.save()
 
     return Response(BookingSerializer(booking, context={"request": request}).data, status=200)
-
-    """
-    if request.user.role.lower() != "user":
-        return Response({"detail": "Only users can complete bookings"}, status=403)
-
-    booking = get_object_or_404(Booking, pk=booking_id, user=request.user)
-
-    if booking.status != "accepted":
-        return Response({"detail": "Booking must be accepted first"}, status=400)
-
-    booking.status = "completed"
-    booking.save()
-
-    return Response(BookingSerializer(booking, context={"request": request}).data, status=200)
-

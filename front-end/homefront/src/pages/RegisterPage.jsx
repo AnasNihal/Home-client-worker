@@ -452,38 +452,3 @@ export default function Register() {
     </div>
   );
 }
-<div>
-  <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-  <input
-    type="text"
-    name="address"
-    value={formData.address}
-    onChange={handleChange}
-    className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${errors.address ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'}`}
-    placeholder="Your work location"
-  />
-  {errors.address && <p className="mt-2 text-sm text-red-600">{errors.address}</p>}
-</div>
-            </>
-          )}
-
-{/* Terms */ }
-<div className="flex items-center space-x-3">
-  <input type="checkbox" name="agreeToTerms" checked={formData.agreeToTerms} onChange={handleChange} />
-  <label className="text-gray-700 text-sm">I agree to the terms and conditions</label>
-</div>
-{ errors.agreeToTerms && <p className="mt-2 text-sm text-red-600">{errors.agreeToTerms}</p> }
-
-{/* Submit Button */ }
-<button
-  type="submit"
-  className="w-full bg-green text-yellow py-3 px-6 rounded-xl font-semibold hover:bg-dark_green transition-all duration-300"
-  disabled={isLoading}
->
-  {isLoading ? 'Submitting...' : 'Register'}
-</button>
-        </form >
-      </div >
-    </div >
-  );
-}
