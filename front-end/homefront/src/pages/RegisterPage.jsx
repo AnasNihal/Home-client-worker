@@ -120,13 +120,9 @@ export default function Register() {
       } else {
         // Check if this is the first user in the system
         try {
-          // For now, assume first user is admin since backend endpoint doesn't exist
-          // In production, this should check: /auth/check-first-user/
-          const isFirstUser = true; // Temporary - assume first user is admin
-
-          const registrationEndpoint = isFirstUser
-            ? 'http://127.0.0.1:8000/auth/user/register/' // Use user register for now
-            : 'http://127.0.0.1:8000/auth/user/register/';
+          // Check if this is the first user by calling an endpoint
+          // For now, we'll assume it's not the first user to avoid admin redirects
+          const registrationEndpoint = 'http://127.0.0.1:8000/auth/user/register/';
 
           const payload = {
             username: formData.name,
@@ -134,7 +130,7 @@ export default function Register() {
             email: formData.email || '',
             phone: formData.phone,
             address: formData.address || '',
-            type: isFirstUser ? 'admin' : 'user' // Add type field for admin
+            type: 'user' // Always register as regular user
           };
 
           const res = await fetch(registrationEndpoint, {
@@ -145,22 +141,19 @@ export default function Register() {
 
           const data = await res.json();
           if (res.ok) {
-            if (isFirstUser) {
-              // First user becomes admin, store admin role and redirect to admin dashboard
-              localStorage.setItem("access", data.access);
-              localStorage.setItem("refresh", data.refresh);
-              localStorage.setItem(
-                "user",
-                JSON.stringify({
-                  username: data.username || formData.name,
-                  role: 'admin' // Force admin role for first user
-                })
-              );
-              window.location.href = '/admin/dashboard';
-            } else {
-              // Regular user, redirect to login
-              window.location.href = '/login';
-            }
+            // Regular user, auto login and redirect to profile
+            localStorage.setItem("access", data.access);
+            localStorage.setItem("refresh", data.refresh);
+            localStorage.setItem(
+              "user",
+              JSON.stringify({
+                username: data.username || formData.name,
+                role: data.role || 'user', // Use role from backend response
+                is_superuser: false // Force false for regular users to prevent admin redirects
+              })
+            );
+            console.log("User registered with role:", data.role, "is_superuser:", false);
+            window.location.href = '/profile/me';
           } else {
             setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
           }

@@ -36,11 +36,11 @@ export default function Footer() {
         <div className="flex-1 min-w-[180px]">
           <h4 className="font-semibold text-lg mb-4">Get in touch</h4>
           <ul className="space-y-3 text-[15px]">
-            <li>+1 (800) 123-4567 - 9</li>
-            <li>info@olton.com</li>
-            <li>123 Main Street, Los Angeles, CA 90001</li>
+            <li>+91 80 1234 5678</li>
+            <li>support@homeservices.in</li>
+            <li>123 Service Lane, Koramangala, Bengaluru, Karnataka 560034, India</li>
             <li>
-              Available: <span className="text-yellow-400 font-semibold">Mon–Sun, 8am – 10pm</span>
+              Available: <span className="text-yellow-400 font-semibold">Mon–Sun, 9am – 7pm</span>
             </li>
           </ul>
         </div>

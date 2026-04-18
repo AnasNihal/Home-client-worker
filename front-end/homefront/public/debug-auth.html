@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Authentication</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; }
+        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Debug</h1>
+    
+    <div class="debug-section">
+        <h2>Current Authentication State</h2>
+        <button onclick="showAuthState()">Show Auth State</button>
+        <button onclick="clearAuth()">Clear Auth</button>
+        <div id="auth-result"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>Test Registration</h2>
+        <button onclick="testUserRegistration()">Test User Registration</button>
+        <div id="reg-result"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info', containerId = 'auth-result') {
+            const resultDiv = document.getElementById(containerId);
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'result';
+            resultDiv.innerHTML += `<div class="${className}">${new Date().toLocaleTimeString()}: ${message}</div>`;
+        }
+
+        function showAuthState() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const access = localStorage.getItem('access');
+            const refresh = localStorage.getItem('refresh');
+            
+            log('Current User Data:', 'info', 'auth-result');
+            log(`Username: ${user.username || 'Not logged in'}`, 'info', 'auth-result');
+            log(`Role: ${user.role || 'No role'}`, 'info', 'auth-result');
+            log(`Is Superuser: ${user.is_superuser || false}`, 'info', 'auth-result');
+            log(`Has Access Token: ${!!access}`, 'info', 'auth-result');
+            log(`Has Refresh Token: ${!!refresh}`, 'info', 'auth-result');
+            
+            // Simulate WorkerRestrictedRoute logic
+            if (!user.username) {
+                log('Result: Not logged in - allow public routes', 'success', 'auth-result');
+            } else if (user.is_superuser || user.role === 'admin') {
+                log('Result: Admin user - should redirect to /admin/login', 'error', 'auth-result');
+            } else if (user.role === 'worker') {
+                log('Result: Worker user - should redirect to /worker/dashboard', 'success', 'auth-result');
+            } else {
+                log('Result: Regular user - should allow all routes', 'success', 'auth-result');
+            }
+        }
+
+        function clearAuth() {
+            localStorage.clear();
+            sessionStorage.clear();
+            log('✅ All authentication cleared', 'success', 'auth-result');
+        }
+
+        async function testUserRegistration() {
+            const userData = {
+                username: 'testuser_' + Date.now(),
+                password: 'testpass123',
+                email: 'test@example.com',
+                phone: '1234567890',
+                address: 'Test Address'
+            };
+
+            try {
+                log('Testing user registration...', 'info', 'reg-result');
+                
+                const response = await fetch('http://127.0.0.1:8000/auth/user/register/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ User registered successfully!`, 'success', 'reg-result');
+                    log(`Response: ${JSON.stringify(data, null, 2)}`, 'info', 'reg-result');
+                    
+                    // Auto login like the app does
+                    const loginResponse = await fetch('http://127.0.0.1:8000/auth/login/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: userData.username,
+                            password: userData.password
+                        })
+                    });
+                    
+                    const loginData = await loginResponse.json();
+                    if (loginResponse.ok) {
+                        log(`✅ Auto login successful!`, 'success', 'reg-result');
+                        log(`Login Response: ${JSON.stringify(loginData, null, 2)}`, 'info', 'reg-result');
+                        
+                        // Store in localStorage like the app does
+                        localStorage.setItem("access", loginData.access);
+                        localStorage.setItem("refresh", loginData.refresh);
+                        localStorage.setItem("user", JSON.stringify({
+                            username: loginData.username,
+                            role: loginData.role,
+                            is_superuser: loginData.is_superuser
+                        }));
+                        
+                        log(`✅ Stored in localStorage`, 'success', 'reg-result');
+                        log(`Stored role: ${loginData.role}`, 'info', 'reg-result');
+                        log(`Stored is_superuser: ${loginData.is_superuser}`, 'info', 'reg-result');
+                    } else {
+                        log(`❌ Auto login failed: ${JSON.stringify(loginData)}`, 'error', 'reg-result');
+                    }
+                } else {
+                    log(`❌ Registration failed: ${JSON.stringify(data)}`, 'error', 'reg-result');
+                }
+            } catch (error) {
+                log(`❌ Network error: ${error.message}`, 'error', 'reg-result');
+            }
+        }
+    </script>
+</body>
+</html>

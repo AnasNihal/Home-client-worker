@@ -13,7 +13,8 @@ const WorkerRestrictedRoute = ({ children }) => {
   }
 
   // If user is a superuser, redirect to admin login
-  if (user.is_superuser) {
+  if (user.is_superuser || user.role === 'admin') {
+    console.log("Redirecting admin user to admin login. Role:", user.role, "Is Superuser:", user.is_superuser);
     return <Navigate to="/admin/login" replace />;
   }
 
@@ -28,6 +29,7 @@ const WorkerRestrictedRoute = ({ children }) => {
   }
 
   // If user is not a worker or superuser (regular user), allow all routes
+  console.log("Allowing access for user. Role:", user.role, "Is Superuser:", user.is_superuser);
   return children;
 };
 

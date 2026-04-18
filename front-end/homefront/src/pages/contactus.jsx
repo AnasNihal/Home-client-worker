@@ -48,7 +48,7 @@ export default function ContactUs() {
                   </div>
                   <div>
                     <h4 className="font-medium text-gray-800">Address</h4>
-                    <p className="text-gray-600 text-sm">123 Service Street<br />San Francisco, CA 94102</p>
+                    <p className="text-gray-600 text-sm">123 Service Lane<br />Koramangala, Bengaluru<br />Karnataka 560034, India</p>
                   </div>
                 </div>
 
@@ -58,7 +58,7 @@ export default function ContactUs() {
                   </div>
                   <div>
                     <h4 className="font-medium text-gray-800">Phone</h4>
-                    <p className="text-gray-600 text-sm">+1 (555) 123-4567</p>
+                    <p className="text-gray-600 text-sm">+91 80 1234 5678</p>
                   </div>
                 </div>
 
@@ -68,7 +68,7 @@ export default function ContactUs() {
                   </div>
                   <div>
                     <h4 className="font-medium text-gray-800">Email</h4>
-                    <p className="text-gray-600 text-sm">support@homeservices.com</p>
+                    <p className="text-gray-600 text-sm">support@homeservices.in</p>
                   </div>
                 </div>
               </div>
@@ -79,15 +79,15 @@ export default function ContactUs() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Monday - Friday</span>
-                  <span className="font-medium">8:00 AM - 6:00 PM</span>
+                  <span className="font-medium">9:00 AM - 7:00 PM</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Saturday</span>
-                  <span className="font-medium">9:00 AM - 4:00 PM</span>
+                  <span className="font-medium">10:00 AM - 6:00 PM</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Sunday</span>
-                  <span className="font-medium">Closed</span>
+                  <span className="font-medium">10:00 AM - 4:00 PM</span>
                 </div>
               </div>
             </div>
@@ -191,11 +191,11 @@ export default function ContactUs() {
         <div className="mt-12 bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <h3 className="text-xl font-semibold text-gray-800">Our Location</h3>
-            <p className="text-gray-600 text-sm mt-1">Visit our office in San Francisco</p>
+            <p className="text-gray-600 text-sm mt-1">Visit our office in Bengaluru</p>
           </div>
           <iframe
             title="contact-map"
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3153.1913542030766!2d-122.41941538468103!3d37.77492977975914!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80858064dfdcd1ab%3A0xdee0e6f0f80a7a4!2sSan%20Francisco%2C%20CA!5e0!3m2!1sen!2sus!4v1633906766815!5m2!1sen!2sus"
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.382726734631!2d77.62242657477147!3d12.9352291876899!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bae1670c9b4416d%3A0x9d6c6c6c6c6c6c6c!2sKoramangala%2C%20Bengaluru%2C%20Karnataka!5e0!3m2!1sen!2sin!4v1633906766815!5m2!1sen!2sin"
             width="100%"
             height="350"
             allowFullScreen=""

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registration Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; }
+        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        .code { background: #f3f4f1; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; }
+        .highlight { background: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Registration Fix Test</h1>
+    
+    <div class="test-section">
+        <h2>🧹 Clear Storage</h2>
+        <p>Clear all authentication data before testing:</p>
+        <button onclick="clearStorage()">Clear All Storage</button>
+        <div id="clear-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>👤 Test User Registration</h2>
+        <p>Test registration flow and check for admin redirect issues:</p>
+        
+        <div>
+            <label>Username:</label><br>
+            <input type="text" id="username" placeholder="testuser123" style="padding: 5px; margin: 5px 0; width: 200px;">
+        </div>
+        
+        <div>
+            <label>Password:</label><br>
+            <input type="password" id="password" placeholder="password123" style="padding: 5px; margin: 5px 0; width: 200px;">
+        </div>
+        
+        <div>
+            <label>Email:</label><br>
+            <input type="email" id="email" placeholder="test@example.com" style="padding: 5px; margin: 5px 0; width: 200px;">
+        </div>
+        
+        <button onclick="testRegistration()">Test Registration</button>
+        <div id="registration-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Check Current Auth State</h2>
+        <button onclick="checkAuthState()">Check Authentication State</button>
+        <div id="auth-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🌐 Test Route Access</h2>
+        <button onclick="testRoutes()">Test Route Access</button>
+        <div id="route-result"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info', containerId = 'clear-result') {
+            const resultDiv = document.getElementById(containerId);
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'result';
+            resultDiv.innerHTML += `<div class="${className}">${new Date().toLocaleTimeString()}: ${message}</div>`;
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            log('✅ All storage cleared', 'success', 'clear-result');
+        }
+
+        async function testRegistration() {
+            const username = document.getElementById('username').value || 'testuser' + Date.now();
+            const password = document.getElementById('password').value || 'password123';
+            const email = document.getElementById('email').value || 'test@example.com';
+
+            log('Testing user registration...', 'info', 'registration-result');
+            
+            const payload = {
+                username: username,
+                password: password,
+                email: email,
+                phone: '1234567890',
+                address: 'Test Address',
+                type: 'user'
+            };
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/auth/user/register/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ Registration successful!', 'success', 'registration-result');
+                    log('Backend response:', 'info', 'registration-result');
+                    
+                    // Log the response structure
+                    log(`Message: ${data.message}`, 'info', 'registration-result');
+                    log(`Username: ${data.username}`, 'info', 'registration-result');
+                    log(`Role: ${data.role}`, 'info', 'registration-result');
+                    log(`Is Superuser: ${data.is_superuser}`, 'info', 'registration-result');
+                    log(`Access Token: ${data.access ? 'Present' : 'Missing'}`, 'info', 'registration-result');
+                    log(`Refresh Token: ${data.refresh ? 'Present' : 'Missing'}`, 'info', 'registration-result');
+
+                    // Simulate frontend behavior
+                    if (data.access && data.refresh) {
+                        localStorage.setItem("access", data.access);
+                        localStorage.setItem("refresh", data.refresh);
+                        localStorage.setItem("user", JSON.stringify({
+                            username: data.username,
+                            role: data.role,
+                            is_superuser: false // Force false
+                        }));
+                        log('✅ Simulated frontend login complete', 'success', 'registration-result');
+                    } else {
+                        log('❌ Missing tokens in response', 'error', 'registration-result');
+                    }
+                } else {
+                    log(`❌ Registration failed: ${JSON.stringify(data)}`, 'error', 'registration-result');
+                }
+            } catch (error) {
+                log(`❌ Network error: ${error.message}`, 'error', 'registration-result');
+            }
+        }
+
+        function checkAuthState() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const access = localStorage.getItem('access');
+            const refresh = localStorage.getItem('refresh');
+            
+            log('Current Authentication State:', 'info', 'auth-result');
+            log(`Username: ${user.username || 'Not logged in'}`, 'info', 'auth-result');
+            log(`Role: ${user.role || 'No role'}`, 'info', 'auth-result');
+            log(`Is Superuser: ${user.is_superuser || false}`, 'info', 'auth-result');
+            log(`Access Token: ${access ? 'Present' : 'Missing'}`, 'info', 'auth-result');
+            log(`Refresh Token: ${refresh ? 'Present' : 'Missing'}`, 'info', 'auth-result');
+
+            // Check for potential admin redirect issues
+            if (user.is_superuser === true) {
+                log('⚠️ WARNING: is_superuser is true - will redirect to admin!', 'warning', 'auth-result');
+            } else if (user.role === 'admin') {
+                log('⚠️ WARNING: role is admin - will redirect to admin!', 'warning', 'auth-result');
+            } else if (user.role === 'user' && user.is_superuser === false) {
+                log('✅ GOOD: Regular user with correct settings', 'success', 'auth-result');
+            } else {
+                log('❓ UNKNOWN: Unexpected role/is_superuser combination', 'warning', 'auth-result');
+            }
+        }
+
+        function testRoutes() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            
+            log('Testing route access...', 'info', 'route-result');
+            
+            // Test profile route
+            fetch('http://localhost:3000/profile/me')
+                .then(response => {
+                    log(`Profile route: ${response.status}`, 'info', 'route-result');
+                    if (response.ok) {
+                        log('✅ Profile route accessible', 'success', 'route-result');
+                    } else {
+                        log(`❌ Profile route returned ${response.status}`, 'error', 'route-result');
+                    }
+                })
+                .catch(error => {
+                    log(`❌ Profile route error: ${error.message}`, 'error', 'route-result');
+                });
+
+            // Test admin login route
+            fetch('http://localhost:3000/admin/login')
+                .then(response => {
+                    log(`Admin login route: ${response.status}`, 'info', 'route-result');
+                    if (response.ok) {
+                        log('✅ Admin login route accessible', 'success', 'route-result');
+                    } else {
+                        log(`❌ Admin login route returned ${response.status}`, 'error', 'route-result');
+                    }
+                })
+                .catch(error => {
+                    log(`❌ Admin login route error: ${error.message}`, 'error', 'route-result');
+                });
+        }
+
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            checkAuthState();
+        });
+    </script>
+</body>
+</html>

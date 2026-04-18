@@ -1,7 +1,6 @@
   import React from 'react';
 import { BrowserRouter , Routes, Route , useLocation} from 'react-router-dom';
 import ScrollToTop from "./ScrollToTop"; 
-import PrivateRoute from './utils/PrivateRoute';
 import WorkerRestrictedRoute from './components/WorkerRestrictedRoute';
 import RoleBasedRoute from './utils/RoleBasedRoute';
 
@@ -26,7 +25,6 @@ import PaymentCancel from './pages/PaymentCancel';
 // Admin imports
 import AdminLogin from './admin/AdminLogin';
 import AdminRouteGuard from './admin/AdminRouteGuard';
-import AdminProtectedRoute from './admin/AdminProtectedRoute';
 import Dashboard from './admin/pages/DashboardOverview';
 import Users from './admin/pages/UsersPage';
 import Workers from './admin/pages/WorkersPage';

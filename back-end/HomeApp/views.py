@@ -48,8 +48,20 @@ def user_register(request):
     serializer = UserRegistrationSerializer(data = request.data)
     if serializer.is_valid():
         user  = serializer.save()
-        return Response({'message':'User Registered'},status=status.HTTP_200_OK)
-    return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+        
+        # Generate tokens for the new user
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'message': 'User Registered',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'username': user.username,
+            'role': user.role,
+            'is_superuser': user.is_superuser
+        }, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
                     
 
 @api_view(['GET','PUT'])  # pyright: ignore
