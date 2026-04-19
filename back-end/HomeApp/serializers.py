@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import Profession, WorkerService,Worker,UserProfile,WorkerRating,Booking
 from django.db.models import Avg
+from decimal import Decimal
 
 
 User = get_user_model()
@@ -115,7 +116,12 @@ class WorkerServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkerService
         fields = ['id', 'services', 'description', 'price']
-        
+
+    def validate_price(self, value):
+        if value < Decimal("100.00"):
+            raise serializers.ValidationError("Service price must be at least ₹100.")
+        return value
+
 
 class WorkerRatingSummarySerializer(serializers.ModelSerializer):
     average_rating = serializers.SerializerMethodField()

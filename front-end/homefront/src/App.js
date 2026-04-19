@@ -29,13 +29,14 @@ import Dashboard from './admin/pages/DashboardOverview';
 import Users from './admin/pages/UsersPage';
 import Workers from './admin/pages/WorkersPage';
 import Bookings from './admin/pages/BookingsPage';
+import PaymentsPage from './admin/pages/PaymentsPage';
 
 
 
 function App() {
   const location = useLocation();
   const hideLayout = ["/login", "/register", "/worker/dashboard", "/worker/summary"].includes(location.pathname) || 
-                        ["/admin/login", "/admin/dashboard", "/admin/users", "/admin/workers", "/admin/bookings", "/admin/services", "/admin/test"].includes(location.pathname);
+                        ["/admin/login", "/admin/dashboard", "/admin/users", "/admin/workers", "/admin/bookings", "/admin/payments", "/admin/services", "/admin/test"].includes(location.pathname);
 
   // Get background color based on route
   const getBackgroundClass = () => {
@@ -136,6 +137,11 @@ function App() {
           <Route path="/admin/bookings" element={
             <AdminRouteGuard>
               <Bookings />
+            </AdminRouteGuard>
+          } />
+          <Route path="/admin/payments" element={
+            <AdminRouteGuard>
+              <PaymentsPage />
             </AdminRouteGuard>
           } />
         </Routes>

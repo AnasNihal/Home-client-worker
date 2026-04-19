@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 import { useNavigate } from 'react-router-dom';
+import AlertToast from '../components/AlertToast';
 
 const API_BASE_URL = 'http://127.0.0.1:8000';
 
@@ -18,7 +19,10 @@ const WorkerDashboard = () => {
   const [editingService, setEditingService] = useState(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
   const navigate = useNavigate();
+
+  const closeToast = () => setToast(null);
 
   // Load Worker Dashboard
   const loadWorkerData = useCallback(async () => {
@@ -79,14 +83,22 @@ const WorkerDashboard = () => {
         await loadWorkerData();
         setIsServiceModalOpen(false);
         setEditingService(null);
-        alert(editingService ? 'Service updated!' : 'Service added!');
+        setToast({
+          type: 'success',
+          title: editingService ? 'Service Updated' : 'Service Added',
+          message: editingService ? 'Your service has been successfully updated.' : 'Your new service is now visible to customers.',
+        });
       } else {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || 'Failed to save service');
       }
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Failed to save service');
+      setToast({
+        type: 'error',
+        title: 'Service Error',
+        message: err.message || 'Failed to save service. Please try again.',
+      });
     }
   };
 
@@ -102,13 +114,21 @@ const WorkerDashboard = () => {
       if (!response) return;
       if (response.ok) {
         await loadWorkerData();
-        alert('Service deleted!');
+        setToast({
+          type: 'success',
+          title: 'Service Deleted',
+          message: 'Your service has been removed successfully.',
+        });
       } else {
         throw new Error('Failed to delete service');
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to delete service');
+      setToast({
+        type: 'error',
+        title: 'Delete Failed',
+        message: 'Could not remove the service right now.',
+      });
     }
   };
 
@@ -127,10 +147,18 @@ const WorkerDashboard = () => {
       const updatedData = await response.json();
       setWorkerData(updatedData);
       setIsProfileModalOpen(false);
-      alert('Profile updated successfully!');
+      setToast({
+        type: 'success',
+        title: 'Profile Saved',
+        message: 'Your profile settings were updated successfully.',
+      });
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Failed to update profile');
+      setToast({
+        type: 'error',
+        title: 'Profile Update Failed',
+        message: err.message || 'Failed to update profile.',
+      });
     }
   };
 
@@ -148,6 +176,14 @@ const WorkerDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0b2e28] via-[#1a4d3a] to-[#0b2e28] flex">
+      {toast && (
+        <AlertToast
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          onClose={closeToast}
+        />
+      )}
       {/* Sidebar */}
       <aside className="w-72 bg-white/10 backdrop-blur-md border-r border-white/20 shadow-2xl">
         <div className="p-6">
@@ -796,7 +832,12 @@ const ServiceModal = ({ service, onClose, onSave }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({ services: title, description, price: parseFloat(price) });
+    const parsedPrice = parseFloat(price);
+    if (Number.isNaN(parsedPrice) || parsedPrice < 100) {
+      alert('Please enter a valid price of at least ₹100.');
+      return;
+    }
+    onSave({ services: title, description, price: parsedPrice });
   };
 
   return (
@@ -830,12 +871,15 @@ const ServiceModal = ({ service, onClose, onSave }) => {
             <label className="block text-sm font-medium text-gray-700 mb-3">Price (₹)</label>
             <input
               type="number"
-              placeholder="0.00"
+              min="100"
+              step="0.01"
+              placeholder="100.00"
               value={price}
               onChange={e => setPrice(e.target.value)}
               className="w-full px-4 py-3.5 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all duration-300"
               required
             />
+            <p className="mt-2 text-xs text-gray-500">Minimum service price is ₹100.</p>
           </div>
           <div className="flex justify-end gap-3 pt-6">
             <button

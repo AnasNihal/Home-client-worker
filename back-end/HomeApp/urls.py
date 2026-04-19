@@ -31,6 +31,7 @@ urlpatterns = [
     # Booking URLs
     path("workers/<int:worker_id>/book/", views.create_booking, name="create_booking"),
     path("payments/stripe/checkout/<int:booking_id>/", views.create_stripe_checkout_session, name="create_stripe_checkout_session"),
+    path("payments/stripe/checkout/new/<int:worker_id>/", views.create_stripe_checkout_session_new, name="create_stripe_checkout_session_new"),
     path("payments/stripe/confirm/", views.confirm_stripe_payment, name="confirm_stripe_payment"),
     path("user/bookings/", views.user_bookings, name="user_bookings"),
     path("worker/bookings/", views.worker_bookings, name="worker_bookings"),

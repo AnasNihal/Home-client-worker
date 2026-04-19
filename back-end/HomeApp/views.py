@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Avg
+from django.contrib.auth import authenticate, get_user_model
 from .serializers  import (
     ProfessionSerializer,
     UserRegistrationSerializer,
@@ -15,7 +16,6 @@ from .serializers  import (
     BookingSerializer
     )
 from rest_framework import status
-from django.contrib.auth import authenticate
 from .models import Profession, UserProfile, Worker, WorkerService,WorkerRating ,Booking
 from django.core.mail import send_mail
 
@@ -349,6 +349,93 @@ def create_stripe_checkout_session(request, booking_id):
 
     return Response({"checkout_url": session.url, "session_id": session.id}, status=200)
 
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_stripe_checkout_session_new(request, worker_id):
+    """Create a Stripe Checkout Session without creating booking first"""
+    if request.user.role.lower() != "user":
+        return Response({"detail": "Only users can book services"}, status=403)
+
+    worker = get_object_or_404(Worker, pk=worker_id)
+    service_id = request.data.get("service_id")
+    date_str = request.data.get("date")
+    time = request.data.get("time")
+
+    if not service_id or not date_str or not time:
+        return Response({"detail": "Service, date, and time must be provided"}, status=400)
+
+    if not settings.STRIPE_SECRET_KEY:
+        return Response({"detail": "Stripe is not configured. Add STRIPE_SECRET_KEY."}, status=500)
+
+    # Get service and calculate amount
+    service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
+    base_amount = Decimal(service.price or 0)
+    
+    MINIMUM_AMOUNT_INR = Decimal("100.00")
+    if base_amount < MINIMUM_AMOUNT_INR:
+        return Response({
+            "detail": f"Minimum booking amount is ₹{MINIMUM_AMOUNT_INR}. Current amount is ₹{base_amount}."
+        }, status=400)
+
+    amount_paise = int(base_amount * 100)
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    try:
+        # Convert date string to Python date object for validation
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        
+        # Check for existing booking conflict
+        conflict = Booking.objects.filter(
+            worker=worker,
+            date=date_obj,
+            status__in=["pending", "accepted"]
+        ).exists()
+
+        if conflict:
+            return Response(
+                {"detail": f"{worker.name} is already booked on {date_obj}. Please choose another day."},
+                status=400
+            )
+
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "inr",
+                        "product_data": {
+                            "name": f"Booking - {service.services}",
+                        },
+                        "unit_amount": amount_paise,
+                    },
+                    "quantity": 1,
+                }
+            ],
+            success_url=f"{settings.FRONTEND_BASE_URL}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{settings.FRONTEND_BASE_URL}/payment/cancel",
+            metadata={
+                "worker_id": str(worker.id),
+                "service_id": str(service.id),
+                "user_id": str(request.user.id),
+                "date": date_str,
+                "time": time,
+                "payment_mode": "now",
+                "amount": str(base_amount),
+            },
+        )
+
+        return Response({
+            "checkout_url": session.url, 
+            "session_id": session.id
+        }, status=200)
+
+    except ValueError:
+        return Response({"detail": "Invalid date format. Use YYYY-MM-DD."}, status=400)
+    except Exception as e:
+        return Response({"detail": f"Failed to create Stripe session: {str(e)}"}, status=500)
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_booking(request, worker_id):
@@ -402,6 +489,13 @@ def create_booking(request, worker_id):
         service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
 
         base_amount = Decimal(service.price or 0)
+        
+        MINIMUM_AMOUNT_INR = Decimal("100.00")
+        if base_amount < MINIMUM_AMOUNT_INR:
+            return Response({
+                "detail": f"Minimum booking amount is ₹{MINIMUM_AMOUNT_INR}. Current amount is ₹{base_amount}."
+            }, status=400)
+        
         pay_later_fee = Decimal("20.00")
 
         booking = serializer.save(
@@ -423,7 +517,7 @@ def create_booking(request, worker_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def confirm_stripe_payment(request):
-    """Called by frontend on success_url to retrieve booking state"""
+    """Called by frontend on success_url to create booking and confirm payment"""
     session_id = request.query_params.get("session_id")
     if not session_id:
         return Response({"detail": "session_id is required"}, status=400)
@@ -441,8 +535,13 @@ def confirm_stripe_payment(request):
         return Response({"detail": "Failed to retrieve Stripe session"}, status=400)
 
     metadata = session.metadata if getattr(session, "metadata", None) else {}
+    
+    # Check if this is a new booking flow (no booking_id in metadata)
+    if not metadata.get("booking_id") and metadata.get("worker_id"):
+        return create_booking_from_payment_session(request, session, metadata)
+    
+    # Existing booking flow
     booking_id = metadata.get("booking_id")
-
     if not booking_id:
         return Response({"detail": "Invalid session configuration"}, status=400)
 
@@ -473,6 +572,86 @@ def confirm_stripe_payment(request):
 
     return Response(BookingSerializer(booking, context={"request": request}).data, status=200)
 
+
+def create_booking_from_payment_session(request, session, metadata):
+    """Create booking after successful payment from Stripe session metadata"""
+    try:
+        from django.utils import timezone
+        from .models import Payment
+        
+        # Extract metadata
+        worker_id = metadata.get("worker_id")
+        service_id = metadata.get("service_id")
+        date_str = metadata.get("date")
+        time = metadata.get("time")
+        payment_mode = metadata.get("payment_mode", "now")
+        amount_str = metadata.get("amount")
+
+        if not all([worker_id, service_id, date_str, time, amount_str]):
+            return Response({"detail": "Invalid session metadata"}, status=400)
+
+        # Get objects
+        worker = get_object_or_404(Worker, pk=worker_id)
+        service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        base_amount = Decimal(amount_str)
+
+        # Double-check no conflict exists
+        conflict = Booking.objects.filter(
+            worker=worker,
+            date=date_obj,
+            status__in=["pending", "accepted"]
+        ).exists()
+
+        if conflict:
+            return Response(
+                {"detail": f"{worker.name} is already booked on {date_obj}. Please contact support."},
+                status=400
+            )
+
+        # Create booking
+        booking_data = {
+            "service_id": service_id,
+            "date": date_obj,
+            "time": time,
+            "payment_mode": payment_mode,
+        }
+
+        serializer = BookingSerializer(data=booking_data)
+        if serializer.is_valid():
+            booking = serializer.save(
+                user=request.user,
+                worker=worker,
+                status="accepted",  # Auto-accept since payment is completed
+                amount=base_amount,
+                pay_later_fee=Decimal("0.00"),  # No fee for pay now
+                payment_status="paid",
+                stripe_checkout_session_id=session.id,
+            )
+
+            # Create payment record
+            Payment.objects.create(
+                booking=booking,
+                user=request.user,
+                worker=worker,
+                amount=base_amount,
+                currency=session.currency or "inr",
+                payment_status="paid",
+                stripe_session_id=session.id,
+                stripe_payment_intent_id=session.payment_intent,
+                paid_at=timezone.now()
+            )
+
+            return Response(
+                BookingSerializer(booking, context={"request": request}).data, 
+                status=201
+            )
+        else:
+            return Response(serializer.errors, status=400)
+
+    except Exception as e:
+        return Response({"detail": f"Failed to create booking: {str(e)}"}, status=500)
+
 @csrf_exempt
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -483,6 +662,8 @@ def stripe_webhook(request):
 
     if not webhook_secret:
         return HttpResponse(status=400)
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
 
     try:
         event = stripe.Webhook.construct_event(

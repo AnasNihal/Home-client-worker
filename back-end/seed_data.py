@@ -55,7 +55,7 @@ def create_workers():
             "address": "123 Main St, City",
             "profession": "Plumbing",
             "experience": "10+ years",
-            "hourly_rate": 50.00,
+            "hourly_rate": 150.00,
             "services": ["Pipe Repair", "Installation", "Emergency Plumbing"],
             "bio": "Experienced plumber with emergency services available"
         },
@@ -66,7 +66,7 @@ def create_workers():
             "address": "456 Oak Ave, City",
             "profession": "Electrical",
             "experience": "8 years",
-            "hourly_rate": 60.00,
+            "hourly_rate": 160.00,
             "services": ["Wiring", "Panel Installation", "Lighting"],
             "bio": "Licensed electrician specializing in residential services"
         },
@@ -77,7 +77,7 @@ def create_workers():
             "address": "789 Pine Rd, City",
             "profession": "Carpentry",
             "experience": "15 years",
-            "hourly_rate": 45.00,
+            "hourly_rate": 140.00,
             "services": ["Furniture", "Cabinets", "Deck Building"],
             "bio": "Master carpenter with custom woodworking expertise"
         },
@@ -88,7 +88,7 @@ def create_workers():
             "address": "321 Elm St, City",
             "profession": "Painting",
             "experience": "6 years",
-            "hourly_rate": 35.00,
+            "hourly_rate": 130.00,
             "services": ["Interior Painting", "Exterior Painting", "Wallpaper"],
             "bio": "Professional painter with attention to detail"
         },
@@ -99,7 +99,7 @@ def create_workers():
             "address": "654 Maple Dr, City",
             "profession": "Cleaning",
             "experience": "5 years",
-            "hourly_rate": 25.00,
+            "hourly_rate": 120.00,
             "services": ["Deep Cleaning", "Regular Maintenance", "Office Cleaning"],
             "bio": "Thorough cleaning services for homes and offices"
         }

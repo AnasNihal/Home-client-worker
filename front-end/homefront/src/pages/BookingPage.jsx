@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
+import AlertToast from "../components/AlertToast";
 
 export default function BookingPage() {
   const { workerId } = useParams();
@@ -14,6 +15,9 @@ export default function BookingPage() {
   const [time, setTime] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPaymentChoice, setShowPaymentChoice] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const closeToast = () => setToast(null);
 
   useEffect(() => {
     // Fetch worker details
@@ -46,7 +50,11 @@ export default function BookingPage() {
 
   const createPayLaterBooking = async () => {
     if (!selectedService || !date || !time) {
-      alert("Please select one service, a date, and a time");
+      setToast({
+        type: 'warning',
+        title: 'Incomplete Booking',
+        message: 'Please select a service, date, and time before continuing.',
+      });
       return;
     }
 
@@ -70,15 +78,27 @@ export default function BookingPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.detail || "Failed to create booking");
+        setToast({
+          type: 'error',
+          title: 'Booking Failed',
+          message: data.detail || 'Failed to create booking. Please try again.',
+        });
         return;
       }
 
-      alert("Booking confirmed! (Payment is pending)");
+      setToast({
+        type: 'success',
+        title: 'Booking Confirmed',
+        message: 'Your booking is confirmed and payment is pending.',
+      });
       navigate("/user/bookings");
     } catch (err) {
       console.error(err);
-      alert("Error creating booking");
+      setToast({
+        type: 'error',
+        title: 'Booking Error',
+        message: 'Error creating booking. Please try again.',
+      });
     } finally {
       setLoading(false);
       setShowPaymentChoice(false);
@@ -87,43 +107,40 @@ export default function BookingPage() {
 
   const startStripeCheckout = async () => {
     if (!selectedService || !date || !time) {
-      alert("Please select one service, a date, and a time");
+      setToast({
+        type: 'warning',
+        title: 'Incomplete Booking',
+        message: 'Please select a service, date, and time before continuing.',
+      });
+      return;
+    }
+
+    // Check minimum amount (₹100 minimum for Stripe)
+    if (parseFloat(selectedService.price) < 100) {
+      setToast({
+        type: 'warning',
+        title: 'Minimum Amount Required',
+        message: 'Please select a service priced at least ₹100.',
+      });
       return;
     }
 
     setLoading(true);
     try {
-      // 1. Create the booking FIRST
-      const bookRes = await fetchWithAuth(`http://127.0.0.1:8000/workers/${workerId}/book/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          service_id: selectedService.id,
-          date,
-          time,
-          payment_mode: "now",
-        }),
-      });
-
-      if (!bookRes) return;
-      const bookData = await bookRes.json();
-
-      if (!bookRes.ok) {
-        alert(bookData.detail || "Failed to create booking");
-        setLoading(false);
-        return;
-      }
-
-      // 2. Start Stripe Checkout using the returned booking ID
+      // 1. Create Stripe Checkout session WITHOUT creating booking first
       const stripeRes = await fetchWithAuth(
-        `http://127.0.0.1:8000/payments/stripe/checkout/${bookData.id}/`,
+        `http://127.0.0.1:8000/payments/stripe/checkout/new/${workerId}/`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            service_id: selectedService.id,
+            date,
+            time,
+            payment_mode: "now",
+          }),
         }
       );
 
@@ -131,19 +148,34 @@ export default function BookingPage() {
       const stripeData = await stripeRes.json();
 
       if (!stripeRes.ok) {
-        alert(stripeData.detail || "Failed to start Stripe Checkout");
+        setToast({
+          type: 'error',
+          title: 'Checkout Error',
+          message: stripeData.detail || 'Failed to start Stripe Checkout.',
+        });
+        setLoading(false);
         return;
       }
 
       if (!stripeData.checkout_url) {
-        alert("Stripe checkout URL missing. Please check backend Stripe configuration.");
+        setToast({
+          type: 'error',
+          title: 'Checkout Error',
+          message: 'Stripe checkout URL is missing. Please check backend configuration.',
+        });
+        setLoading(false);
         return;
       }
 
+      // 2. Redirect to Stripe for payment - booking will be created only after successful payment
       window.location.href = stripeData.checkout_url;
     } catch (err) {
       console.error(err);
-      alert("Error starting Stripe Checkout");
+      setToast({
+        type: 'error',
+        title: 'Checkout Error',
+        message: 'Error starting Stripe Checkout. Please try again.',
+      });
     } finally {
       setLoading(false);
       setShowPaymentChoice(false);
@@ -169,6 +201,14 @@ export default function BookingPage() {
 
   return (
     <div className="bg-green min-h-screen">
+      {toast && (
+        <AlertToast
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          onClose={closeToast}
+        />
+      )}
       <div className="max-w-6xl mx-auto px-4 pt-24 sm:pt-28 pb-12">
         <div className="bg-white rounded-3xl shadow-sm border border-black/5 overflow-hidden">
           <div className="p-7 sm:p-10">

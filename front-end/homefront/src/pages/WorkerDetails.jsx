@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {rateWorker, getAuthData, redirectToLogin} from "../utils/useHelper";
+import AlertToast from "../components/AlertToast";
 
 export default function WorkerDetails() {
   const { workerId } = useParams();
@@ -13,7 +14,10 @@ export default function WorkerDetails() {
   const [reviewText, setReviewText] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [toast, setToast] = useState(null);
   const navigate = useNavigate();
+
+  const closeToast = () => setToast(null);
 
   const { user } = getAuthData();
 
@@ -63,7 +67,11 @@ export default function WorkerDetails() {
     }
 
     if (userRating === 0) {
-      alert("Please select a rating");
+      setToast({
+        type: 'warning',
+        title: 'Rating Required',
+        message: 'Please select a rating before submitting your review.',
+      });
       return;
     }
 
@@ -80,12 +88,20 @@ export default function WorkerDetails() {
         ],
       }));
 
-      alert("Thank you! Rating submitted.");
+      setToast({
+        type: 'success',
+        title: 'Review Submitted',
+        message: 'Thank you! Your rating has been recorded.',
+      });
       setShowReviewForm(false);
       setUserRating(0);
       setReviewText("");
     } catch (err) {
-      alert(err);
+      setToast({
+        type: 'error',
+        title: 'Review Failed',
+        message: err?.toString() || 'Unable to submit your review at this time.',
+      });
     }
   };
 
@@ -124,6 +140,14 @@ export default function WorkerDetails() {
 
   return (
     <div className="bg-green min-h-screen">
+      {toast && (
+        <AlertToast
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          onClose={closeToast}
+        />
+      )}
       <div className="max-w-6xl mx-auto px-4 pt-24 sm:pt-28 pb-12">
         <div className="bg-white rounded-3xl shadow-sm border border-black/5 overflow-hidden">
           <div className="p-7 sm:p-10">

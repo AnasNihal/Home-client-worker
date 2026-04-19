@@ -12,7 +12,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from django.core.paginator import Paginator
 
-from HomeApp.models import Worker, WorkerService, Booking, WorkerRating
+from HomeApp.models import Worker, WorkerService, Booking, WorkerRating, Payment
 from .models import AdminActionLog
 
 User = get_user_model()
@@ -1172,3 +1172,150 @@ def admin_delete_service(request, service_id):
     return Response(
         {"message": f'Service "{service_name}" deleted successfully'}
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@superuser_required
+def admin_payments(request):
+    """
+    Get all payments with filtering and pagination
+    """
+    try:
+        # Get query parameters
+        page = int(request.GET.get('page', 1))
+        page_size = int(request.GET.get('page_size', 10))
+        payment_status = request.GET.get('payment_status', '')
+        payment_mode = request.GET.get('payment_mode', '')
+        search = request.GET.get('search', '')
+        
+        # Build query
+        payments = Payment.objects.select_related('booking', 'user', 'worker').all()
+        
+        # Apply filters
+        if payment_status:
+            payments = payments.filter(payment_status__iexact=payment_status)
+        if payment_mode:
+            payments = payments.filter(booking__payment_mode__iexact=payment_mode)
+        if search:
+            payments = payments.filter(
+                Q(user__username__icontains=search) |
+                Q(worker__name__icontains=search) |
+                Q(booking__id__icontains=search)
+            )
+        
+        # Order by latest
+        payments = payments.order_by('-created_at')
+        
+        # Paginate
+        paginator = Paginator(payments, page_size)
+        payments_page = paginator.get_page(page)
+        
+        # Serialize data
+        payments_data = []
+        for payment in payments_page:
+            payments_data.append({
+                'id': payment.id,
+                'booking_id': payment.booking.id,
+                'user': {
+                    'id': payment.user.id,
+                    'username': payment.user.username,
+                    'email': payment.user.email
+                },
+                'worker': {
+                    'id': payment.worker.id,
+                    'name': payment.worker.name
+                },
+                'amount': float(payment.amount),
+                'currency': payment.currency,
+                'payment_status': payment.payment_status,
+                'payment_mode': payment.booking.payment_mode,
+                'stripe_session_id': payment.stripe_session_id,
+                'stripe_payment_intent_id': payment.stripe_payment_intent_id,
+                'paid_at': payment.paid_at.isoformat() if payment.paid_at else None,
+                'created_at': payment.created_at.isoformat(),
+                'service': payment.booking.service.services if payment.booking.service else None,
+                'booking_date': payment.booking.date.isoformat() if payment.booking.date else None,
+                'booking_time': payment.booking.time.isoformat() if payment.booking.time else None
+            })
+        
+        return Response({
+            'payments': payments_data,
+            'pagination': {
+                'current_page': payments_page.number,
+                'total_pages': paginator.num_pages,
+                'total_items': paginator.count,
+                'has_next': payments_page.has_next(),
+                'has_previous': payments_page.has_previous()
+            },
+            'stats': {
+                'total_payments': paginator.count,
+                'paid_amount': float(payments.filter(payment_status='paid').aggregate(total=Sum('amount'))['total'] or 0),
+                'pending_amount': float(payments.filter(payment_status='pending').aggregate(total=Sum('amount'))['total'] or 0),
+                'failed_amount': float(payments.filter(payment_status='failed').aggregate(total=Sum('amount'))['total'] or 0)
+            }
+        })
+        
+    except Exception as e:
+        return Response(
+            {"error": f"Failed to fetch payments: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@superuser_required
+def admin_payment_detail(request, payment_id):
+    """
+    Get detailed information about a specific payment
+    """
+    try:
+        payment = Payment.objects.select_related('booking', 'user', 'worker', 'booking__service').get(id=payment_id)
+        
+        payment_data = {
+            'id': payment.id,
+            'booking': {
+                'id': payment.booking.id,
+                'service': payment.booking.service.services if payment.booking.service else None,
+                'date': payment.booking.date.isoformat() if payment.booking.date else None,
+                'time': payment.booking.time.isoformat() if payment.booking.time else None,
+                'status': payment.booking.status,
+                'payment_mode': payment.booking.payment_mode,
+                'notes': payment.booking.notes,
+                'stripe_checkout_session_id': payment.booking.stripe_checkout_session_id
+            },
+            'user': {
+                'id': payment.user.id,
+                'username': payment.user.username,
+                'email': payment.user.email,
+                'phone': getattr(payment.user, 'phone', None)
+            },
+            'worker': {
+                'id': payment.worker.id,
+                'name': payment.worker.name,
+                'email': payment.worker.email,
+                'phone': payment.worker.phone
+            },
+            'amount': float(payment.amount),
+            'currency': payment.currency,
+            'payment_status': payment.payment_status,
+            'stripe_session_id': payment.stripe_session_id,
+            'stripe_payment_intent_id': payment.stripe_payment_intent_id,
+            'paid_at': payment.paid_at.isoformat() if payment.paid_at else None,
+            'created_at': payment.created_at.isoformat(),
+            'updated_at': payment.updated_at.isoformat() if hasattr(payment, 'updated_at') else None
+        }
+        
+        return Response(payment_data)
+        
+    except Payment.DoesNotExist:
+        return Response(
+            {"error": "Payment not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {"error": f"Failed to fetch payment details: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
+import AlertToast from "../components/AlertToast";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
@@ -8,7 +9,10 @@ const UserBookingsPage = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState(null);
   const navigate = useNavigate();
+
+  const closeToast = () => setToast(null);
 
   const loadBookings = useCallback(async () => {
     try {
@@ -46,64 +50,96 @@ const UserBookingsPage = () => {
       setBookings((prev) =>
         prev.map((b) => (b.id === id ? { ...b, status: updated.status } : b))
       );
+      setToast({
+        type: 'success',
+        title: 'Booking Canceled',
+        message: 'Your booking has been canceled successfully.',
+      });
     } catch (err) {
       console.error(err);
-      alert("Failed to cancel booking");
+      setToast({
+        type: 'error',
+        title: 'Cancel Failed',
+        message: 'Could not cancel the booking right now.',
+      });
     }
   };
 
-const handleComplete = async (id) => {
-  if (!window.confirm("Mark this booking as completed?")) return;
+  const handleComplete = async (id) => {
+    if (!window.confirm("Mark this booking as completed?")) return;
 
-  try {
-    const response = await fetchWithAuth(`${API_BASE_URL}/bookings/${id}/complete/`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    if (!response) return;
-    if (!response.ok) throw new Error("Failed to complete booking");
-    const updated = await response.json();
-    setBookings((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: updated.status } : b))
-    );
-  } catch (err) {
-    console.error(err);
-    alert("Failed to mark booking as completed");
-  }
-};
-
-
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/bookings/${id}/complete/`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response) return;
+      if (!response.ok) throw new Error("Failed to complete booking");
+      const updated = await response.json();
+      setBookings((prev) =>
+        prev.map((b) => (b.id === id ? { ...b, status: updated.status } : b))
+      );
+      setToast({
+        type: 'success',
+        title: 'Booking Completed',
+        message: 'Your booking status is now completed.',
+      });
+    } catch (err) {
+      console.error(err);
+      setToast({
+        type: 'error',
+        title: 'Completion Failed',
+        message: 'Unable to mark the booking as completed.',
+      });
+    }
+  };
 
   const handleReview = async (workerId, rating, review) => {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/workers/${workerId}/rate/`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/reviews/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ rating, review }),
+        body: JSON.stringify({ worker: workerId, rating, review }),
       });
       if (!response) return;
       if (!response.ok) throw new Error("Failed to submit review");
-      alert("Review submitted successfully!");
+      setToast({
+        type: 'success',
+        title: 'Review Submitted',
+        message: 'Thank you for your review.',
+      });
     } catch (err) {
       console.error(err);
-      alert("Failed to submit review");
+      setToast({
+        type: 'error',
+        title: 'Review Failed',
+        message: 'Could not submit your review. Please try again.',
+      });
     }
   };
 
-  const handlePayNow = async (bookingId) => {
+  const handlePayNow = async (booking) => {
     try {
       setLoading(true);
+      
+      // Use the new payment flow that doesn't require existing booking
       const res = await fetchWithAuth(
-        `${API_BASE_URL}/payments/stripe/checkout/${bookingId}/`,
+        `${API_BASE_URL}/payments/stripe/checkout/new/${booking.worker.id}/`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            service_id: booking.service.id,
+            date: booking.date,
+            time: booking.time,
+            payment_mode: "now",
+          }),
         }
       );
 
@@ -111,19 +147,31 @@ const handleComplete = async (id) => {
 
       const data = await res.json();
       if (!res.ok) {
-        alert(data.detail || "Failed to start Stripe Checkout");
+        setToast({
+          type: 'error',
+          title: 'Payment Failed',
+          message: data.detail || 'Failed to start Stripe Checkout.',
+        });
         return;
       }
 
       if (!data.checkout_url) {
-        alert("Stripe checkout URL missing.");
+        setToast({
+          type: 'error',
+          title: 'Payment Failed',
+          message: 'Stripe checkout URL missing.',
+        });
         return;
       }
 
       window.location.href = data.checkout_url;
     } catch (err) {
       console.error(err);
-      alert("Error starting Stripe Checkout");
+      setToast({
+        type: 'error',
+        title: 'Stripe Error',
+        message: 'Error starting Stripe Checkout.',
+      });
     } finally {
       setLoading(false);
     }
@@ -137,7 +185,9 @@ const handleComplete = async (id) => {
   if (error) return <p className="text-red-500 text-center mt-10">{error}</p>;
 
   return (
-    <div className="min-h-screen bg-light_green p-6 mt-20">
+    <>
+      <AlertToast toast={toast} onClose={closeToast} />
+      <div className="min-h-screen bg-light_green p-6 mt-20">
       <h2 className="text-2xl font-bold text-green mb-6">My Bookings</h2>
       {bookings.length === 0 && <p>No bookings found.</p>}
       <div className="space-y-4">
@@ -203,7 +253,7 @@ const handleComplete = async (id) => {
             <div className="flex gap-4 items-center">
               {b.payment_status !== "paid" && (
                 <button
-                  onClick={() => handlePayNow(b.id)}
+                  onClick={() => handlePayNow(b)}
                   className="px-6 py-2 bg-yellow hover:bg-yellow-500 text-green font-bold rounded-lg shadow-sm"
                 >
                   Pay Now
@@ -276,7 +326,9 @@ const handleComplete = async (id) => {
         ))}
       </div>
     </div>
-  );
+  </>
+);
+
 };
 
 export default UserBookingsPage;

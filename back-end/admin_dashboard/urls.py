@@ -37,4 +37,8 @@ urlpatterns = [
     path('services/', views.admin_services, name='admin_services'),
     path('services/<int:service_id>/toggle/', views.admin_toggle_service, name='admin_toggle_service'),
     path('services/<int:service_id>/', views.admin_delete_service, name='admin_delete_service'),
+    
+    # Payment Management
+    path('payments/', views.admin_payments, name='admin_payments'),
+    path('payments/<int:payment_id>/', views.admin_payment_detail, name='admin_payment_detail'),
 ]

@@ -1,9 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
-from django.core.validators import RegexValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.conf import settings
 from django.utils.text import slugify
+from decimal import Decimal
 
 
 
@@ -83,7 +84,17 @@ class WorkerService(models.Model):
     worker = models.ForeignKey(Worker,on_delete=models.CASCADE, related_name='services')
     services = models.CharField(max_length=100)
     description = models.TextField(null=True, blank=True)
-    price = models.DecimalField(max_digits=8, decimal_places=2, default=100.00)
+    price = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal("100.00"),
+        validators=[MinValueValidator(Decimal("100.00"))]
+    )
+
+    def save(self, *args, **kwargs):
+        if self.price is not None and self.price < Decimal("100.00"):
+            self.price = Decimal("100.00")
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.services
