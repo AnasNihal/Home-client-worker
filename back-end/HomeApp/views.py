@@ -319,7 +319,7 @@ def create_stripe_checkout_session(request, booking_id):
     stripe.api_key = settings.STRIPE_SECRET_KEY
     amount_paise = int(booking.amount * 100)
 
-    # Note: We don't create the Payment record yet, we'll do that in the webhook
+    # Note: We don't create Payment record yet, we'll do that in the webhook
     # or upon confirmation.
     
     session = stripe.checkout.Session.create(

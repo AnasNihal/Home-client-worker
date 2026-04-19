@@ -51,7 +51,8 @@ function App() {
       {!hideLayout && <Navbar />} 
       <main className={`${getBackgroundClass()} min-h-screen`}>
         <Routes>
-          <Route path="/" element={
+          <Route path="/" element={<Register />} />
+          <Route path="/home" element={
             <WorkerRestrictedRoute>
               <Home />
             </WorkerRestrictedRoute>

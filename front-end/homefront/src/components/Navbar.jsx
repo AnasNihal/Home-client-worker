@@ -77,7 +77,7 @@ export default function Navbar() {
           {/* Desktop Navigation */}
           <div className="hidden lg:flex">
             <ul className="flex gap-8 text-white font-medium">
-              <li><Link to="/" className="hover:text-yellow-400 transition-colors duration-200">Home</Link></li>
+              <li><Link to="/home" className="hover:text-yellow-400 transition-colors duration-200">Home</Link></li>
               <li><Link to="/About" className="hover:text-yellow-400 transition-colors duration-200">About</Link></li>
               <li><Link to="/Worker" className="hover:text-yellow-400 transition-colors duration-200">Workers</Link></li>
               <li><Link to="/blog" className="hover:text-yellow-400 transition-colors duration-200">Blog</Link></li>
@@ -161,7 +161,7 @@ export default function Navbar() {
           <div className="lg:hidden bg-green/95 backdrop-blur-sm border-t border-white/20">
             <div className="px-6 py-4">
               <ul className="space-y-3 text-white font-medium">
-                <li><Link to="/" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>Home</Link></li>
+                <li><Link to="/home" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>Home</Link></li>
                 <li><Link to="/About" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>About</Link></li>
                 <li><Link to="/Worker" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>Workers</Link></li>
                 <li><Link to="/blog" className="block hover:text-yellow-400 transition-colors duration-200" onClick={closeMobileMenu}>Blog</Link></li>
