@@ -1,8 +1,9 @@
 // src/pages/RegisterPage.jsx
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function Register() {
+  const navigate = useNavigate();
   const [step, setStep] = useState('userType'); // 'userType', 'userForm', 'workerForm'
   const [userType, setUserType] = useState(''); // 'user' or 'worker'
   const [formData, setFormData] = useState({
@@ -20,6 +21,24 @@ export default function Register() {
   const [professions, setProfessions] = useState([]); // dynamic professions list
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userRole = user?.role || null;
+    const username = user?.username || null;
+
+    // If user is already authenticated, redirect to appropriate dashboard
+    if (username) {
+      if (userRole === 'worker') {
+        navigate('/worker/dashboard', { replace: true });
+      } else if (userRole === 'user') {
+        navigate('/home', { replace: true });
+      } else if (user?.is_superuser) {
+        navigate('/admin/dashboard', { replace: true });
+      }
+    }
+  }, [navigate]);
 
   // Fetch professions dynamically from backend when worker form is loaded
   useEffect(() => {
@@ -445,4 +464,3 @@ export default function Register() {
     </div>
   );
 }
-  

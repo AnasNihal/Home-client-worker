@@ -19,6 +19,12 @@ export default function BookingPage() {
 
   const closeToast = () => setToast(null);
 
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
   useEffect(() => {
     // Fetch worker details
     fetch(`http://127.0.0.1:8000/workers/${workerId}/`)
@@ -184,9 +190,29 @@ export default function BookingPage() {
 
   const handleConfirmClick = () => {
     if (!selectedService || !date || !time) {
-      alert("Please select a service, date, and time first");
+      setToast({
+        type: 'warning',
+        title: 'Incomplete Booking',
+        message: 'Please select a service, date, and time.',
+      });
       return;
     }
+
+    // Validate time is within working hours (9 AM to 6 PM)
+    const [hours, minutes] = time.split(':').map(Number);
+    const timeInMinutes = hours * 60 + minutes;
+    const morningStart = 9 * 60; // 9 AM
+    const eveningEnd = 18 * 60; // 6 PM
+
+    if (timeInMinutes < morningStart || timeInMinutes >= eveningEnd) {
+      setToast({
+        type: 'warning',
+        title: 'Invalid Time',
+        message: 'Workers are only available from 9 AM to 6 PM.',
+      });
+      return;
+    }
+
     setShowPaymentChoice(true);
   };
 
@@ -203,9 +229,7 @@ export default function BookingPage() {
     <div className="bg-green min-h-screen">
       {toast && (
         <AlertToast
-          type={toast.type}
-          title={toast.title}
-          message={toast.message}
+          toast={toast}
           onClose={closeToast}
         />
       )}
@@ -308,8 +332,10 @@ export default function BookingPage() {
                         type="date"
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
+                        min={getTodayDate()}
                         className="w-full p-3 border border-black/10 rounded-xl focus:ring-2 focus:ring-green focus:border-green outline-none"
                       />
+                      <p className="mt-1 text-xs text-gray-500">Only upcoming dates available</p>
                     </div>
                     <div>
                       <label className="block text-green font-semibold mb-2">Select Time</label>
@@ -317,8 +343,11 @@ export default function BookingPage() {
                         type="time"
                         value={time}
                         onChange={(e) => setTime(e.target.value)}
+                        min="09:00"
+                        max="18:00"
                         className="w-full p-3 border border-black/10 rounded-xl focus:ring-2 focus:ring-green focus:border-green outline-none"
                       />
+                      <p className="mt-1 text-xs text-gray-500">Available: 9 AM to 6 PM</p>
                     </div>
                   </div>
                 </div>

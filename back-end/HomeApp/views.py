@@ -386,6 +386,25 @@ def create_stripe_checkout_session_new(request, worker_id):
         # Convert date string to Python date object for validation
         date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
         
+        # Validate booking date is not in the past
+        from datetime import date as date_type
+        if date_obj < date_type.today():
+            return Response({"detail": "Cannot book for past dates. Please select an upcoming date."}, status=400)
+
+        # Validate time is within working hours (9 AM to 6 PM)
+        try:
+            time_obj = datetime.strptime(time, "%H:%M").time()
+            from datetime import time as time_type
+            morning_start = time_type(9, 0)  # 9 AM
+            evening_end = time_type(18, 0)   # 6 PM
+            
+            if time_obj < morning_start or time_obj >= evening_end:
+                return Response({
+                    "detail": "Workers are only available from 9 AM to 6 PM. Please select a time within working hours."
+                }, status=400)
+        except ValueError:
+            return Response({"detail": "Invalid time format. Use HH:MM."}, status=400)
+        
         # Check for existing booking conflict
         conflict = Booking.objects.filter(
             worker=worker,
@@ -463,6 +482,26 @@ def create_booking(request, worker_id):
         date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
         return Response({"detail": "Invalid date format. Use YYYY-MM-DD."}, status=400)
+
+    # Validate booking date is not in the past
+    from datetime import date as date_type
+    if date_obj < date_type.today():
+        return Response({"detail": "Cannot book for past dates. Please select an upcoming date."}, status=400)
+
+    # Validate time is within working hours (9 AM to 6 PM)
+    if time:
+        try:
+            time_obj = datetime.strptime(time, "%H:%M").time()
+            from datetime import time as time_type
+            morning_start = time_type(9, 0)  # 9 AM
+            evening_end = time_type(18, 0)   # 6 PM
+            
+            if time_obj < morning_start or time_obj >= evening_end:
+                return Response({
+                    "detail": "Workers are only available from 9 AM to 6 PM. Please select a time within working hours."
+                }, status=400)
+        except ValueError:
+            return Response({"detail": "Invalid time format. Use HH:MM."}, status=400)
 
     # Check for existing booking for this worker on the same date
     conflict = Booking.objects.filter(
