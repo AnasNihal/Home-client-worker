@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Avg
+from django.db import transaction
 from django.contrib.auth import authenticate, get_user_model
 from .serializers  import (
     ProfessionSerializer,
@@ -120,6 +121,10 @@ def worker_dashboard(request):
         # Get all bookings for this worker
         completed_jobs = Booking.objects.filter(worker=worker, status="completed").count()
 
+        ratings_qs = WorkerRating.objects.filter(worker=worker)
+        avg_rating = ratings_qs.aggregate(Avg('rating'))['rating__avg']
+        total_ratings = ratings_qs.count()
+
         bookings = Booking.objects.filter(worker=worker).select_related("user", "service")
         bookings_data = [
             {
@@ -133,15 +138,28 @@ def worker_dashboard(request):
             for b in bookings
         ]
 
+        reviews = WorkerRating.objects.filter(worker=worker).select_related("user").order_by("-created_at")
+        reviews_list = [
+            {
+                "id": r.id,  # pyright: ignore
+                "user__username": r.user.username,
+                "rating": r.rating,
+                "review": r.review,
+                "created_at": r.created_at.strftime("%Y-%m-%d %H:%M"),
+            }
+            for r in reviews
+        ]
+
         return Response({
             **worker_data,
             "bookings_count": bookings.count(),
             "completed_jobs": completed_jobs,
             "bookings": bookings_data,
             "ratings": {
-                "average_rating": getattr(worker, "average_rating", 0),
-                "total_ratings": getattr(worker, "total_ratings", 0),
-            }
+                "average_rating": round(avg_rating, 1) if avg_rating else 0,
+                "total_ratings": total_ratings,
+            },
+            "reviews": reviews_list,
         })
 
     elif request.method == "PUT":
@@ -503,11 +521,23 @@ def create_booking(request, worker_id):
         except ValueError:
             return Response({"detail": "Invalid time format. Use HH:MM."}, status=400)
 
-    # Check for existing booking for this worker on the same date
+    # Check for existing booking for this user/worker on the same date/time
+    existing_booking = Booking.objects.filter(
+        user=request.user,
+        worker=worker,
+        date=date_obj,
+        time=time,
+        status__in=["pending", "accepted", "confirmed"]
+    ).first()
+
+    if existing_booking:
+        return Response(BookingSerializer(existing_booking, context={"request": request}).data, status=200)
+
+    # Check for worker availability on the same date
     conflict = Booking.objects.filter(
         worker=worker,
         date=date_obj,
-        status__in=["pending", "accepted"]
+        status__in=["pending", "accepted", "confirmed"]
     ).exists()
 
     if conflict:
@@ -537,14 +567,15 @@ def create_booking(request, worker_id):
         
         pay_later_fee = Decimal("20.00")
 
-        booking = serializer.save(
-            user=request.user,
-            worker=worker,
-            status="pending",
-            amount=base_amount,
-            pay_later_fee=pay_later_fee,
-            payment_status="due",
-        )
+        with transaction.atomic():
+            booking = serializer.save(
+                user=request.user,
+                worker=worker,
+                status="pending",
+                amount=base_amount,
+                pay_later_fee=pay_later_fee,
+                payment_status="due",
+            )
 
         response_payload = BookingSerializer(booking, context={"request": request}).data
 
@@ -635,11 +666,36 @@ def create_booking_from_payment_session(request, session, metadata):
         date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
         base_amount = Decimal(amount_str)
 
+        existing_by_session = Booking.objects.filter(
+            stripe_checkout_session_id=session.id,
+            user=request.user,
+        ).first()
+
+        if existing_by_session:
+            return Response(
+                BookingSerializer(existing_by_session, context={"request": request}).data,
+                status=200
+            )
+
+        existing_same_slot = Booking.objects.filter(
+            user=request.user,
+            worker=worker,
+            date=date_obj,
+            time=time,
+            status__in=["pending", "accepted", "confirmed", "completed"]
+        ).first()
+
+        if existing_same_slot:
+            return Response(
+                BookingSerializer(existing_same_slot, context={"request": request}).data,
+                status=200
+            )
+
         # Double-check no conflict exists
         conflict = Booking.objects.filter(
             worker=worker,
             date=date_obj,
-            status__in=["pending", "accepted"]
+            status__in=["pending", "accepted", "confirmed"]
         ).exists()
 
         if conflict:

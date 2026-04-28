@@ -418,7 +418,7 @@ export default function BookingPage() {
                     <button
                       onClick={startStripeCheckout}
                       disabled={loading}
-                      className="w-full py-3 rounded-xl font-semibold bg-green text-white hover:bg-green/90 transition-colors disabled:opacity-60"
+                      className="w-full py-3 rounded-xl font-semibold bg-yellow text-green hover:bg-yellow/90 transition-colors disabled:opacity-60"
                     >
                       Pay Now
                     </button>

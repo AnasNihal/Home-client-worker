@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
+import { rateWorker } from "../utils/useHelper";
 import AlertToast from "../components/AlertToast";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
@@ -10,6 +11,9 @@ const UserBookingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);
+  const [ratingByBooking, setRatingByBooking] = useState({});
+  const [reviewByBooking, setReviewByBooking] = useState({});
+  const [reviewedByBooking, setReviewedByBooking] = useState({});
   const navigate = useNavigate();
 
   const closeToast = () => setToast(null);
@@ -96,28 +100,36 @@ const UserBookingsPage = () => {
     }
   };
 
-  const handleReview = async (workerId, rating, review) => {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/reviews/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ worker: workerId, rating, review }),
+  const handleReview = async (bookingId, workerId) => {
+    const rating = ratingByBooking[bookingId];
+    const review = reviewByBooking[bookingId] || "";
+
+    if (!rating) {
+      setToast({
+        type: "warning",
+        title: "Rating Required",
+        message: "Please select a rating before submitting your review.",
       });
-      if (!response) return;
-      if (!response.ok) throw new Error("Failed to submit review");
+      return;
+    }
+
+    try {
+      await rateWorker(workerId, rating, review);
       setToast({
         type: 'success',
         title: 'Review Submitted',
         message: 'Thank you for your review.',
       });
+
+      setRatingByBooking((prev) => ({ ...prev, [bookingId]: 0 }));
+      setReviewByBooking((prev) => ({ ...prev, [bookingId]: "" }));
+      setReviewedByBooking((prev) => ({ ...prev, [bookingId]: true }));
     } catch (err) {
       console.error(err);
       setToast({
         type: 'error',
         title: 'Review Failed',
-        message: 'Could not submit your review. Please try again.',
+        message: err?.toString() || 'Could not submit your review. Please try again.',
       });
     }
   };
@@ -254,7 +266,7 @@ const UserBookingsPage = () => {
               {b.payment_status !== "paid" && (
                 <button
                   onClick={() => handlePayNow(b)}
-                  className="px-6 py-2 bg-yellow hover:bg-yellow-500 text-green font-bold rounded-lg shadow-sm"
+                  className="px-6 py-2 bg-yellow hover:bg-yellow/90 text-green font-bold rounded-lg shadow-sm"
                 >
                   Pay Now
                 </button>
@@ -284,41 +296,55 @@ const UserBookingsPage = () => {
 
 
             {/* Rating & Review Section */}
-          {["accepted", "completed"].includes(b.status.toLowerCase()) && (
+          {b.status.toLowerCase() === "completed" && (
             <div className="mt-4 border-t pt-4">
-              <h3 className="font-semibold mb-2">Leave a Review</h3>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const rating = e.target.rating.value;
-                  const review = e.target.review.value;
-                  handleReview(b.worker.id, rating, review);
-                  e.target.reset();
-                }}
-                className="space-y-2"
-              >
-                <input
-                  type="number"
-                  name="rating"
-                  placeholder="Rating (1-5)"
-                  min="1"
-                  max="5"
-                  required
-                  className="w-full border rounded-lg p-2"
-                />
-                <textarea
-                  name="review"
-                  placeholder="Write your review..."
-                  required
-                  className="w-full border rounded-lg p-2"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow"
-                >
-                  Submit Review
-                </button>
-              </form>
+              {reviewedByBooking[b.id] ? (
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-50 text-green-700 font-semibold">
+                  Review submitted
+                </div>
+              ) : (
+                <>
+                  <h3 className="font-semibold mb-2">Leave a Review</h3>
+                  <div className="space-y-3">
+                    <div className="flex gap-1.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() =>
+                            setRatingByBooking((prev) => ({ ...prev, [b.id]: star }))
+                          }
+                          className={`w-9 h-9 rounded-lg ring-1 ring-black/10 transition-colors ${
+                            star <= (ratingByBooking[b.id] || 0)
+                              ? "bg-yellow text-green"
+                              : "bg-white text-gray-400"
+                          }`}
+                          aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      name="review"
+                      placeholder="Write your review..."
+                      value={reviewByBooking[b.id] || ""}
+                      onChange={(e) =>
+                        setReviewByBooking((prev) => ({ ...prev, [b.id]: e.target.value }))
+                      }
+                      rows={3}
+                      className="w-full border rounded-lg p-2"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleReview(b.id, b.worker.id)}
+                      className="px-6 py-2 bg-yellow hover:bg-yellow/90 text-green font-bold rounded-lg shadow"
+                    >
+                      Submit Review
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

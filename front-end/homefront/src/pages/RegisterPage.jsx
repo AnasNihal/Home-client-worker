@@ -67,9 +67,13 @@ export default function Register() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    const nextValue = name === 'phone'
+      ? value.replace(/\D/g, '').slice(0, 10)
+      : value;
+
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : nextValue
     }));
 
     if (errors[name]) {
@@ -330,7 +334,10 @@ export default function Register() {
                 value={formData.phone}
                 onChange={handleChange}
                 className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${errors.phone ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'}`}
-                placeholder="+1 (555) 123-4567"
+                placeholder="9876543210"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={10}
               />
               {errors.phone && <p className="mt-2 text-sm text-red-600">{errors.phone}</p>}
             </div>
@@ -345,7 +352,7 @@ export default function Register() {
                   value={formData.address}
                   onChange={handleChange}
                   className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${errors.address ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'}`}
-                  placeholder="123 Main St, City"
+                  placeholder="12 MG Road, Bengaluru"
                 />
                 {errors.address && <p className="mt-2 text-sm text-red-600">{errors.address}</p>}
               </div>
@@ -437,7 +444,7 @@ export default function Register() {
                   value={formData.address}
                   onChange={handleChange}
                   className={`w-full rounded-xl border px-4 py-3 transition-all duration-200 focus:ring-2 focus:ring-yellow focus:border-transparent ${errors.address ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-yellow'}`}
-                  placeholder="Your work location"
+                  placeholder="Sector 15, Noida"
                 />
                 {errors.address && <p className="mt-2 text-sm text-red-600">{errors.address}</p>}
               </div>
@@ -461,6 +468,6 @@ export default function Register() {
           </button>
         </form>
       </div>
-    </div>
+    </div>  
   );
 }

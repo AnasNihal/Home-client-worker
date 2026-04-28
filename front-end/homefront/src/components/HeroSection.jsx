@@ -48,23 +48,15 @@ export default function HeroSection() {
             buttonsVisible ? 'animate' : ''
           }`}
         >
-         
-          <a
-            href="#qt"
-            className="relative flex items-center justify-center bg-[#FCD34D] text-[#0C7C59] font-medium px-6 py-3 rounded-full overflow-hidden group hover:scale-105 transition-transform duration-200"
-          >
-            <span className="absolute left-5 transform transition-all duration-700 ease-in-out group-hover:left-auto group-hover:right-5">
-              →
-            </span>
-            <span className="pl-7 transition-all duration-700 ease-in-out group-hover:-translate-x-3">
-              Get&nbsp;A&nbsp;Quote
-            </span>
-          </a>
-
           <Link to="/Worker">
-          <button className="flex items-center gap-2 border border-[#FCD34D] text-white px-6 py-3 rounded-full hover:bg-[#FCD34D] hover:text-[#0C7C59] hover:scale-105 transition-all duration-200">
-            → Book A Service
-          </button>
+            <button className="relative flex items-center justify-center bg-[#FCD34D] text-[#0C7C59] font-medium px-6 py-3 rounded-full overflow-hidden group hover:scale-105 transition-transform duration-200">
+              <span className="absolute left-5 transform transition-all duration-700 ease-in-out group-hover:left-auto group-hover:right-5">
+                →
+              </span>
+              <span className="pl-7 transition-all duration-700 ease-in-out group-hover:-translate-x-3">
+                Book&nbsp;A&nbsp;Service
+              </span>
+            </button>
           </Link>
         </div>
 

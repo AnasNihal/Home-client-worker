@@ -25,10 +25,8 @@ export default function Footer() {
           <h4 className="font-semibold text-lg mb-4">Essential</h4>
           <ul className="space-y-3 text-[15px]">
             <li><Link to="/about" className="hover:text-yellow transition">About Us</Link></li>
-            <li><Link to="/expertise" className="hover:text-yellow transition">Our expertise</Link></li>
-            <li><Link to="/how-it-works" className="hover:text-yellow transition">How it Works</Link></li>
             <li><Link to="/faqs" className="hover:text-yellow transition">FAQs</Link></li>
-            <li><Link to="/contact" className="hover:text-yellow transition">Contact Us</Link></li>
+            <li><Link to="/contactus" className="hover:text-yellow transition">Contact Us</Link></li>
           </ul>
         </div>
 

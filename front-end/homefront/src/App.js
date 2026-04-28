@@ -5,6 +5,7 @@ import WorkerRestrictedRoute from './components/WorkerRestrictedRoute';
 import RoleBasedRoute from './utils/RoleBasedRoute';
 
 import Navbar from "./components/Navbar";
+import BackButton from "./components/BackButton";
 import WorkerPage from './pages/WorkerPage';
 import Home from "./pages/Home";
 import Footer from './components/Footer';
@@ -12,6 +13,7 @@ import AboutPage from './pages/AboutPage';
 import WorkerDetails from './pages/WorkerDetails';
 import ContactUs from './pages/ContactUs';
 import BlogPage from './pages/BlogPage';
+import FaqPage from './pages/FaqPage';
 import Login from './pages/LoginPage';  
 import Register from './pages/RegisterPage';
 import ProfilePage from './pages/UserProfilePage';
@@ -49,6 +51,7 @@ function App() {
   return (
     <>
       <ScrollToTop />
+      <BackButton />
       {!hideLayout && <Navbar />} 
       <main className={`${getBackgroundClass()} min-h-screen`}>
         <Routes>
@@ -81,6 +84,11 @@ function App() {
           <Route path="/contactus" element={
             <WorkerRestrictedRoute>
               <ContactUs />
+            </WorkerRestrictedRoute>
+          } />
+          <Route path="/faqs" element={
+            <WorkerRestrictedRoute>
+              <FaqPage />
             </WorkerRestrictedRoute>
           } />
           <Route path="/login" element={<Login />} />

@@ -1,8 +1,8 @@
 // src/pages/WorkerDashboard.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  UserIcon, BriefcaseIcon, CalendarIcon, CurrencyDollarIcon, 
-  DocumentTextIcon, CogIcon, ArrowRightOnRectangleIcon, HomeIcon,
+  UserIcon, BriefcaseIcon, CalendarIcon,
+  DocumentTextIcon, ArrowRightOnRectangleIcon, HomeIcon,
   PlusIcon, PencilIcon, MapPinIcon, PhoneIcon, EnvelopeIcon, StarIcon
 } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from "../utils/fetchWithAuth";
@@ -275,29 +275,6 @@ const WorkerDashboard = () => {
               <span className="font-medium">Bookings</span>
             </button>
 
-            <button
-              onClick={() => setActiveSection('earnings')}
-              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 ${
-                activeSection === 'earnings' 
-                  ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-[#0b2e28] shadow-lg transform scale-105' 
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <CurrencyDollarIcon className="h-5 w-5" />
-              <span className="font-medium">Earnings</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection('settings')}
-              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 ${
-                activeSection === 'settings' 
-                  ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-[#0b2e28] shadow-lg transform scale-105' 
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <CogIcon className="h-5 w-5" />
-              <span className="font-medium">Settings</span>
-            </button>
           </nav>
 
           {/* Logout */}
@@ -322,16 +299,13 @@ const WorkerDashboard = () => {
               {activeSection === 'profile' && 'Profile Management'}
               {activeSection === 'services' && 'Service Management'}
               {activeSection === 'bookings' && 'Booking Details'}
-              {activeSection === 'earnings' && 'Earnings Overview'}
-              {activeSection === 'settings' && 'Account Settings'}
+              
             </h2>
             <p className="text-white/60 mt-2">
               {activeSection === 'overview' && 'Manage your professional profile and track your performance'}
               {activeSection === 'profile' && 'Update your personal information and professional details'}
               {activeSection === 'services' && 'Add, edit, or remove your service offerings'}
               {activeSection === 'bookings' && 'View and manage your upcoming and completed bookings'}
-              {activeSection === 'earnings' && 'Monitor your income and payment history'}
-              {activeSection === 'settings' && 'Configure your account preferences and security'}
             </p>
           </div>
         </header>
@@ -348,8 +322,6 @@ const WorkerDashboard = () => {
             />
           )}
           {activeSection === 'bookings' && <BookingsSection />}
-          {activeSection === 'earnings' && <EarningsSection />}
-          {activeSection === 'settings' && <SettingsSection />}
         </div>
       </main>
 
@@ -475,6 +447,40 @@ const OverviewSection = ({ workerData }) => (
           </div>
         </div>
       </div>
+    </div>
+
+    <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6 shadow-xl">
+      <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+        <StarIcon className="h-5 w-5 text-yellow-400" />
+        Recent Reviews
+      </h3>
+      {(() => {
+        const reviewsSource = workerData?.reviews || workerData?.ratings_list || [];
+        const normalizedReviews = reviewsSource.map((rev) => ({
+          ...rev,
+          user__username: rev.user__username || rev.user || "User",
+        }));
+        return normalizedReviews.length > 0 ? (
+        <div className="space-y-4">
+          {normalizedReviews.map((rev) => (
+            <div key={rev.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="font-semibold text-white truncate">
+                  {rev.user__username || "User"}
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-yellow-400">{"★".repeat(rev.rating)}</span>
+                  <span className="text-white/30">{"☆".repeat(5 - rev.rating)}</span>
+                </div>
+              </div>
+              {rev.review && <p className="text-white/80">{rev.review}</p>}
+            </div>
+          ))}
+        </div>
+        ) : (
+        <p className="text-white/60">No reviews yet.</p>
+        );
+      })()}
     </div>
   </div>
 );
@@ -796,33 +802,6 @@ const BookingsSection = () => {
   );
 };
 
-// Earnings Section
-const EarningsSection = () => (
-  <div className="space-y-8">
-    <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-8 shadow-xl">
-      <h3 className="text-2xl font-semibold text-white mb-8">Earnings Overview</h3>
-      <div className="text-center py-16">
-        <CurrencyDollarIcon className="h-20 w-20 text-white/30 mx-auto mb-6" />
-        <p className="text-white/60 text-lg mb-2">Earnings tracking coming soon</p>
-        <p className="text-white/40">You'll be able to view your earnings and payment history here</p>
-      </div>
-    </div>
-  </div>
-);
-
-// Settings Section
-const SettingsSection = () => (
-  <div className="space-y-8">
-    <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-8 shadow-xl">
-      <h3 className="text-2xl font-semibold text-white mb-8">Account Settings</h3>
-      <div className="text-center py-16">
-        <CogIcon className="h-20 w-20 text-white/30 mx-auto mb-6" />
-        <p className="text-white/60 text-lg mb-2">Settings management coming soon</p>
-        <p className="text-white/40">You'll be able to manage your account settings here</p>
-      </div>
-    </div>
-  </div>
-);
 
 // Service Modal
 const ServiceModal = ({ service, onClose, onSave }) => {
@@ -945,8 +924,12 @@ const ProfileEditModal = ({ workerData, onClose, onSave }) => {
             <input
               type="tel"
               value={phone}
-              onChange={e => setPhone(e.target.value)}
+              onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
               className="w-full px-4 py-3.5 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all duration-300"
+              placeholder="9876543210"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={10}
             />
           </div>
           <div>

@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function BookingSection() {
   return (
     <>
@@ -46,8 +48,8 @@ export default function BookingSection() {
               accentCircle="bg-white text-primary"
             />
             <div className="flex flex-col justify-end mt-8">
-              <a
-                href="#book"
+              <Link
+                to="/worker"
                 className="inline-flex items-center gap-2 bg-yellow text-primary px-8 py-4 rounded-full font-semibold text-lg shadow hover:bg-[#FFE042] transition-colors self-start"
               >
                 Book Now
@@ -60,7 +62,7 @@ export default function BookingSection() {
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
-              </a>
+              </Link>
             </div>
           </div>
         </div>

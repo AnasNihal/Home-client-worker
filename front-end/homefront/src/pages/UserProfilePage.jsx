@@ -44,7 +44,10 @@ export default function UserProfilePage() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    const nextValue = name === "phone"
+      ? value.replace(/\D/g, '').slice(0, 10)
+      : value;
+    setForm(prev => ({ ...prev, [name]: nextValue }));
   };
 
   const handleSave = async (e) => {
@@ -157,7 +160,10 @@ export default function UserProfilePage() {
                       value={form.phone}
                       onChange={handleChange}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1c392e] focus:border-transparent transition-all duration-200"
-                      placeholder="Phone number"
+                      placeholder="9876543210"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={10}
                     />
                   </div>
                   <div>

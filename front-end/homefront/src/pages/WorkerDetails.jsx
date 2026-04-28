@@ -44,11 +44,17 @@ export default function WorkerDetails() {
               }))
             : [];
 
+        const normalizedReviewsSource = data.reviews || data.ratings_list || [];
+        const normalizedReviews = normalizedReviewsSource.map((rev) => ({
+          ...rev,
+          user__username: rev.user__username || rev.user || "User",
+        }));
+
         setWorker({
           ...data,
           profession: professionName,
           services: normalizedServices,
-          reviews: data.reviews || [] // attach reviews
+          reviews: normalizedReviews,
         });
       } catch (err) {
         setError(err.message);
@@ -203,7 +209,11 @@ export default function WorkerDetails() {
               <div className="lg:col-span-8">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
                   <div className="rounded-2xl bg-light_green p-4 ring-1 ring-green/10">
-                    <div className="text-2xl font-bold text-green">{worker.rating || "0"}</div>
+                    <div className="text-2xl font-bold text-green">
+                      {Number.isFinite(Number(worker.ratings?.average_rating))
+                        ? Number(worker.ratings.average_rating).toFixed(1)
+                        : "0.0"}
+                    </div>
                     <div className="text-sm text-green/80">Rating</div>
                   </div>
                   <div className="rounded-2xl bg-light_green p-4 ring-1 ring-green/10">
@@ -272,9 +282,6 @@ export default function WorkerDetails() {
                                   </span>
                                   <span className="text-gray-300">
                                     {"☆".repeat(5 - rev.rating)}
-                                  </span>
-                                  <span className="text-sm text-gray-600 ml-1">
-                                    ({rev.rating}/5)
                                   </span>
                                 </div>
                               </div>

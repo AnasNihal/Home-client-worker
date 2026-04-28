@@ -47,6 +47,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.profileimage.url)
         return None
 
+    def validate_phone(self, value):
+        if value in (None, ""):
+            return value
+        if not value.isdigit() or len(value) != 10:
+            raise serializers.ValidationError("Phone number must be exactly 10 digits.")
+        return value
+
     def update(self, instance, validated_data):
         # handle nested user fields
         user_data = validated_data.pop("user", {})
@@ -63,7 +70,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class UserRegistrationSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only = True)
-    email = serializers.EmailField(required = False,allow_blank = True)
+    email = serializers.EmailField(required = True, allow_blank = False)
     phone  = serializers.CharField(required = False,allow_blank = True)
     address = serializers.CharField(required = False,allow_blank = True)
     
@@ -71,6 +78,13 @@ class UserRegistrationSerializer(serializers.Serializer):
         if User.objects.filter(username = value).exists():
             raise serializers.ValidationError("Username already taken")
         return value 
+
+    def validate_phone(self, value):
+        if value in (None, ""):
+            return value
+        if not value.isdigit() or len(value) != 10:
+            raise serializers.ValidationError("Phone number must be exactly 10 digits.")
+        return value
 
     def create(self,validated_data):
         username = validated_data.pop('username')
@@ -86,7 +100,7 @@ class UserRegistrationSerializer(serializers.Serializer):
 class WorkerRegistrationSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
-    email = serializers.EmailField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=True, allow_blank=False)
     # initial worker profile fields:
     phone = serializers.CharField()
     profession_id = serializers.PrimaryKeyRelatedField(
@@ -101,6 +115,13 @@ class WorkerRegistrationSerializer(serializers.Serializer):
     def validate_username (self,value):
         if User.objects.filter(username = value).exists():
             raise serializers.ValidationError("Username is already Taken")
+        return value
+
+    def validate_phone(self, value):
+        if value in (None, ""):
+            raise serializers.ValidationError("Phone number must be exactly 10 digits.")
+        if not value.isdigit() or len(value) != 10:
+            raise serializers.ValidationError("Phone number must be exactly 10 digits.")
         return value
     
     def create(self , validated_data):

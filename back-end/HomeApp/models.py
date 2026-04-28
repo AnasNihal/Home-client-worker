@@ -23,8 +23,8 @@ class UserProfile(models.Model):
         max_length=15,
         validators=[
             RegexValidator(
-                regex=r'^\+?\d{7,15}$',
-                message="Enter a valid phone number."
+                regex=r'^\d{10}$',
+                message="Phone number must be exactly 10 digits."
             )
         ],
         blank=True,
@@ -61,8 +61,8 @@ class Worker(models.Model):
         max_length=15,
         validators=[
             RegexValidator(
-                regex=r'^\+?\d{7,15}$',
-                message="Enter a valid phone number."
+                regex=r'^\d{10}$',
+                message="Phone number must be exactly 10 digits."
             )
         ]
     )   
