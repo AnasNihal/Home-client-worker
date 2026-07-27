@@ -1,4 +1,4 @@
-# Home Service
+    # Home Service
 
 A full-stack home services marketplace where customers can register, browse workers by profession, book a service, pay now with Stripe or pay later, manage profile details, and rate completed work. Workers can manage their profile, services, bookings, and booking status. The project also includes a JWT-protected super-admin dashboard for users, workers, bookings, services, and payments.
 
