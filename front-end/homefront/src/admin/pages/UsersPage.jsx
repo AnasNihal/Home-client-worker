@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAdminToken } from '../adminUtils';
 import AdminLayout from '../components/AdminLayout';
+import { API_BASE_URL } from '../../constants/api';
 
 const UsersPage = () => {
   const [users, setUsers] = useState([]);
@@ -27,7 +28,7 @@ const UsersPage = () => {
           return;
         }
 
-        const response = await fetch('http://127.0.0.1:8000/api/superadmin/users/', {
+        const response = await fetch(`${API_BASE_URL}/api/superadmin/users/`, {
           headers: {
             'Authorization': `Bearer ${adminToken}`,
             'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "./fetchWithAuth";
+import { API_BASE_URL } from "../constants/api";
 
-const API_URL = "http://127.0.0.1:8000"; // change to your backend URL
+const API_URL = API_BASE_URL;
 
 // 🔑 Utility: Get token and user info
 /**

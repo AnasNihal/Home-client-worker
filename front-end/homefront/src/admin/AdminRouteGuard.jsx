@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { API_BASE_URL } from '../constants/api';
 
 const AdminRouteGuard = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -18,7 +19,7 @@ const AdminRouteGuard = ({ children }) => {
         }
 
         // Verify admin token by calling admin me endpoint
-        const response = await fetch('http://127.0.0.1:8000/api/superadmin/me/', {
+        const response = await fetch(`${API_BASE_URL}/api/superadmin/me/`, {
           headers: {
             'Authorization': `Bearer ${adminToken}`,
             'Content-Type': 'application/json'

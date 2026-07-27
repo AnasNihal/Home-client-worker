@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../constants/api";
 // src/pages/LoginPage.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -68,7 +69,7 @@ export default function Login() {
     setErrors({});
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/auth/login/", {
+      const response = await fetch(`${API_BASE_URL}/auth/login/`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -178,29 +179,6 @@ export default function Login() {
             {errors.password && (
               <p className="mt-2 text-sm text-red-600">{errors.password}</p>
             )}
-          </div>
-
-          {/* Remember Me & Forgot Password */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="remember"
-                className="h-4 w-4 text-yellow-500 focus:ring-yellow-500 border-gray-300 rounded"
-              />
-              <label
-                htmlFor="remember"
-                className="ml-2 block text-sm text-gray-700"
-              >
-                Remember me
-              </label>
-            </div>
-            <Link
-              to="/forgot-password"
-              className="text-sm text-yellow-600 hover:text-yellow-700 hover:underline"
-            >
-              Forgot password?
-            </Link>
           </div>
 
           {/* Login Button */}

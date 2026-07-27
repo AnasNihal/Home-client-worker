@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
+import { API_BASE_URL } from "../constants/api";
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
@@ -20,7 +21,7 @@ export default function PaymentSuccess() {
         }
 
         const res = await fetchWithAuth(
-          `http://127.0.0.1:8000/payments/stripe/confirm/?session_id=${encodeURIComponent(sessionId)}`,
+          `${API_BASE_URL}/payments/stripe/confirm/?session_id=${encodeURIComponent(sessionId)}`,
           {
             headers: {
               "Content-Type": "application/json",

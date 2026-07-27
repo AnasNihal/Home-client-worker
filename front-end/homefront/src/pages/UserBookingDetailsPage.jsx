@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 import { rateWorker } from "../utils/useHelper";
 import AlertToast from "../components/AlertToast";
-
-const API_BASE_URL = "http://127.0.0.1:8000";
+import { API_BASE_URL } from "../constants/api";
 
 const UserBookingsPage = () => {
   const [bookings, setBookings] = useState([]);

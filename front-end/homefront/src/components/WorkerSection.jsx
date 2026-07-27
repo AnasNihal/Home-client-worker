@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../constants/api";
 // src/components/WorkerSection.jsx
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -14,13 +15,13 @@ export default function WorkersSection() {
     let cancelled = false;
     async function fetchWorkers() {
       try {
-        const res = await fetch("http://127.0.0.1:8000/workers/");
+        const res = await fetch(`${API_BASE_URL}/workers/`);
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
         const normalized = (Array.isArray(data) ? data : []).map((w, idx) => {
           const id = w.id ?? w.pk ?? w.username ?? (w.name ? `worker-${w.name.toLowerCase().replace(/\s+/g, "-")}` : `worker-${idx}`);
           let image = w.image || w.image_url || w.profile_image || "";
-          if (image && typeof image === "string" && !image.startsWith("http")) image = `http://127.0.0.1:8000${image.startsWith("/") ? "" : "/"}${image}`;
+          if (image && typeof image === "string" && !image.startsWith("http")) image = `${API_BASE_URL}${image.startsWith("/") ? "" : "/"}${image}`;
           if (!image) image = "https://via.placeholder.com/400";
 
           const servicesArr = Array.isArray(w.services) ? w.services : [];
@@ -72,7 +73,7 @@ export default function WorkersSection() {
   useEffect(() => {
     async function fetchProfessions() {
       try {
-        const res = await fetch("http://127.0.0.1:8000/professions/");
+        const res = await fetch(`${API_BASE_URL}/professions/`);
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
         setProfessions([{ id: "all", name: "All Services", slug: "all" }, ...data]);

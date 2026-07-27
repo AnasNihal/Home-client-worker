@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../constants/api";
 // src/pages/WorkerDetails.jsx
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
@@ -26,7 +27,7 @@ export default function WorkerDetails() {
       try {
         setLoading(true);
         const response = await fetch(
-          `http://127.0.0.1:8000/workers/${workerId}/`
+          `${API_BASE_URL}/workers/${workerId}/`
         );
         if (!response.ok) throw new Error("Worker not found");
         const data = await response.json();
@@ -175,7 +176,7 @@ export default function WorkerDetails() {
                       worker.image
                         ? worker.image.startsWith("http")
                           ? worker.image
-                          : `http://127.0.0.1:8000${worker.image}`
+                          : `${API_BASE_URL}${worker.image}`
                         : "https://via.placeholder.com/400x400?text=No+Image"
                     }
                     alt={worker.name}

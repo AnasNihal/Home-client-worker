@@ -1,5 +1,5 @@
+import { API_BASE_URL } from "../constants/api";
 // Secure authentication utility with httpOnly cookies support
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 
 export async function secureFetch(url, options = {}) {
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
@@ -19,7 +19,7 @@ export async function secureFetch(url, options = {}) {
   // Handle 401 unauthorized - try to refresh token via cookies
   if (response.status === 401) {
     // Try to refresh token using httpOnly cookies
-    const refreshResponse = await fetch(`${API_BASE_URL}/token/refresh/`, {
+    const refreshResponse = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -41,7 +41,7 @@ export async function secureFetch(url, options = {}) {
 }
 
 export async function login(credentials) {
-  const response = await secureFetch('/api/login/', {
+  const response = await secureFetch('/auth/login/', {
     method: 'POST',
     body: JSON.stringify(credentials),
   });

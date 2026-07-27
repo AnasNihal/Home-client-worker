@@ -2,24 +2,22 @@
 # FRONTEND
 # -----------------
 front-end/homefront/node_modules/
-front-end/homefrontdist/
-front-end/homefrontbuild/
+front-end/homefront/dist/
+front-end/homefront/build/
 front-end/homefront/.next/
 front-end/homefront/out/
 front-end/homefront/*.log
 front-end/homefront/.env
-front-end/homefront/.env.example
 front-end/homefront/.env.*.local
 
 # -----------------
 # BACKEND
 # -----------------
-back-end/__pycache__/
-back-end/*.py[cod]
-back-end/*$py.class
+**/__pycache__/
+*.py[cod]
+*$py.class
 back-end/myenv/
 back-end/.env
-back-end/.env.example
 back-end/.venv/
 back-end/ENV/
 back-end/*.sqlite3
@@ -38,3 +36,5 @@ back-end/instance/
 .DS_Store
 Thumbs.db
 .env
+build/
+dist/

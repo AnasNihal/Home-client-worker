@@ -1,6 +1,8 @@
+import { API_BASE_URL } from "../constants/api";
 // src/pages/UserProfilePage.jsx
 import React, { useEffect, useState } from "react";
 import { getAuthData } from "../utils/useHelper";
+import { fetchWithAuth } from "../utils/fetchWithAuth";
 import { PencilIcon, UserIcon, MapPinIcon, PhoneIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 
 export default function UserProfilePage() {
@@ -11,9 +13,9 @@ export default function UserProfilePage() {
   const [form, setForm] = useState({});
 
   useEffect(() => {
-    // Get user data from localStorage instead of API call
     const { user } = getAuthData();
     if (user) {
+      // Set initial values from local storage as fallback while loading
       setProfile({
         username: user.username,
         email: user.email || '',
@@ -37,6 +39,22 @@ export default function UserProfilePage() {
         postal_code: '',
         country: ''
       });
+
+      // Fetch actual profile from API
+      const fetchProfile = async () => {
+        try {
+          const response = await fetchWithAuth(`${API_BASE_URL}/user/profile/`);
+          if (response && response.ok) {
+            const data = await response.json();
+            setProfile(prev => ({ ...prev, ...data }));
+            setForm(prev => ({ ...prev, ...data }));
+          }
+        } catch (err) {
+          console.error("Failed to fetch profile:", err);
+        }
+      };
+      
+      fetchProfile();
     } else {
       setError("No user data found");
     }
@@ -55,12 +73,37 @@ export default function UserProfilePage() {
     setSaving(true);
     
     try {
-      // Simulate saving - just update local state
-      setProfile(prev => ({ ...prev, ...form }));
-      setEditing(false);
-      setTimeout(() => setSaving(false), 1000);
+      const response = await fetchWithAuth(`${API_BASE_URL}/user/profile/`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (response && response.ok) {
+        const data = await response.json();
+        setProfile(prev => ({ ...prev, ...data }));
+        setForm(prev => ({ ...prev, ...data }));
+        setEditing(false);
+        
+        // Update user data in local storage
+        const { user } = getAuthData();
+        if (user) {
+          localStorage.setItem("user", JSON.stringify({
+            ...user,
+            first_name: data.first_name || user.first_name,
+            last_name: data.last_name || user.last_name,
+            email: data.email || user.email,
+          }));
+        }
+      } else {
+        setError("Failed to save profile");
+      }
     } catch (err) {
+      console.error("Failed to save profile:", err);
       setError("Failed to save profile");
+    } finally {
       setSaving(false);
     }
   };

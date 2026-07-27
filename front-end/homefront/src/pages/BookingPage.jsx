@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../constants/api";
 // src/pages/BookingPage.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -27,7 +28,7 @@ export default function BookingPage() {
 
   useEffect(() => {
     // Fetch worker details
-    fetch(`http://127.0.0.1:8000/workers/${workerId}/`)
+    fetch(`${API_BASE_URL}/workers/${workerId}/`)
       .then((res) => res.json())
       .then((data) => {
         setWorker(data);
@@ -39,7 +40,7 @@ export default function BookingPage() {
   const workerImageSrc = worker?.image
     ? worker.image.startsWith("http")
       ? worker.image
-      : `http://127.0.0.1:8000${worker.image}`
+      : `${API_BASE_URL}${worker.image}`
     : "";
 
   const workerProfessionName =
@@ -66,7 +67,7 @@ export default function BookingPage() {
 
     setLoading(true);
     try {
-      const res = await fetchWithAuth(`http://127.0.0.1:8000/workers/${workerId}/book/`, {
+      const res = await fetchWithAuth(`${API_BASE_URL}/workers/${workerId}/book/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -135,7 +136,7 @@ export default function BookingPage() {
     try {
       // 1. Create Stripe Checkout session WITHOUT creating booking first
       const stripeRes = await fetchWithAuth(
-        `http://127.0.0.1:8000/payments/stripe/checkout/new/${workerId}/`,
+        `${API_BASE_URL}/payments/stripe/checkout/new/${workerId}/`,
         {
           method: "POST",
           headers: {

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../constants/api";
 /**
  * Authentication wrapper for fetch API calls
  * Handles token-based authentication for API requests
@@ -31,7 +32,7 @@ export async function fetchWithAuth(url, options = {}) {
     }
 
     // Refresh access token
-    const refreshResponse = await fetch("http://127.0.0.1:8000/auth/token/refresh/", {
+    const refreshResponse = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh }),

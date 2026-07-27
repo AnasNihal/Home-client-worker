@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getAdminToken } from '../adminUtils';
 import AdminLayout from '../components/AdminLayout';
+import { API_BASE_URL } from '../../constants/api';
 
 const PaymentsPage = () => {
   const [payments, setPayments] = useState([]);
@@ -29,7 +30,7 @@ const PaymentsPage = () => {
     page_size: 10
   });
 
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async (activeFilters) => {
     try {
       setLoading(true);
       setError('');
@@ -42,21 +43,32 @@ const PaymentsPage = () => {
       }
 
       const queryParams = new URLSearchParams();
-      Object.keys(filters).forEach(key => {
-        if (filters[key]) {
-          queryParams.append(key, filters[key]);
+      Object.keys(activeFilters).forEach(key => {
+        if (activeFilters[key]) {
+          queryParams.append(key, activeFilters[key]);
         }
       });
 
-      const response = await fetch(`http://127.0.0.1:8000/api/superadmin/payments/?${queryParams}`, {
+      const response = await fetch(`${API_BASE_URL}/api/superadmin/payments/?${queryParams}`, {
         headers: { 'Authorization': `Bearer ${adminToken}` }
       });
 
       if (response.ok) {
         const data = await response.json();
         setPayments(data.payments || []);
-        setStats(data.stats || stats);
-        setPagination(data.pagination || pagination);
+        setStats(data.stats || {
+          total_payments: 0,
+          paid_amount: 0,
+          pending_amount: 0,
+          failed_amount: 0
+        });
+        setPagination(data.pagination || {
+          current_page: 1,
+          total_pages: 1,
+          total_items: 0,
+          has_next: false,
+          has_previous: false
+        });
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to fetch payments');
@@ -66,11 +78,13 @@ const PaymentsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchPayments();
-  }, [filters.page, filters.page_size]);
+    fetchPayments(filters);
+    // Search text is submitted explicitly; avoid refetching on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchPayments, filters.page, filters.page_size, filters.payment_status, filters.payment_mode]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({
@@ -82,8 +96,11 @@ const PaymentsPage = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setFilters(prev => ({ ...prev, page: 1 }));
-    fetchPayments();
+    if (filters.page !== 1) {
+      setFilters(prev => ({ ...prev, page: 1 }));
+    } else {
+      fetchPayments(filters);
+    }
   };
 
   const getStatusBadge = (status, mode) => {

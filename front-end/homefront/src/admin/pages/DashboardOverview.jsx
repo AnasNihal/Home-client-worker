@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAdminToken } from '../adminUtils';
 import AdminLayout from '../components/AdminLayout';
+import { API_BASE_URL } from '../../constants/api';
 
 const DashboardOverview = () => {
   const [stats, setStats] = useState({});
@@ -21,13 +22,13 @@ const DashboardOverview = () => {
 
         // Fetch all data in parallel
         const [statsResponse, bookingsResponse, paymentsResponse] = await Promise.all([
-          fetch('http://127.0.0.1:8000/api/superadmin/stats/', {
+          fetch(`${API_BASE_URL}/api/superadmin/stats/`, {
             headers: { 'Authorization': `Bearer ${adminToken}` }
           }),
-          fetch('http://127.0.0.1:8000/api/superadmin/bookings/', {
+          fetch(`${API_BASE_URL}/api/superadmin/bookings/`, {
             headers: { 'Authorization': `Bearer ${adminToken}` }
           }),
-          fetch('http://127.0.0.1:8000/api/superadmin/payments/', {
+          fetch(`${API_BASE_URL}/api/superadmin/payments/`, {
             headers: { 'Authorization': `Bearer ${adminToken}` }
           })
         ]);

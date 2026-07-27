@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAdminToken } from '../adminUtils';
 import AdminLayout from '../components/AdminLayout';
+import { API_BASE_URL } from '../../constants/api';
 
 const BookingsPage = () => {
   const [bookings, setBookings] = useState([]);
@@ -29,7 +30,7 @@ const BookingsPage = () => {
           return;
         }
 
-        const response = await fetch('http://127.0.0.1:8000/api/superadmin/bookings/', {
+        const response = await fetch(`${API_BASE_URL}/api/superadmin/bookings/`, {
           headers: {
             'Authorization': `Bearer ${adminToken}`,
             'Content-Type': 'application/json',

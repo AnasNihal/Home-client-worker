@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAdminToken } from '../adminUtils';
 import AdminLayout from '../components/AdminLayout';
+import { API_BASE_URL } from '../../constants/api';
 // import { 
 //   EyeIcon, 
 //   PencilSquareIcon, 
@@ -20,7 +21,7 @@ const Services = () => {
     try {
       setLoading(true);
       const adminToken = getAdminToken();
-      const response = await fetch('http://127.0.0.1:8000/api/superadmin/services/', {
+      const response = await fetch(`${API_BASE_URL}/api/superadmin/services/`, {
         headers: {
           'Authorization': `Bearer ${adminToken}`,
           'Content-Type': 'application/json',
@@ -43,7 +44,7 @@ const Services = () => {
   const handleToggleService = async (serviceId) => {
     try {
       const adminToken = getAdminToken();
-      const response = await fetch(`http://127.0.0.1:8000/api/superadmin/services/${serviceId}/toggle/`, {
+      const response = await fetch(`${API_BASE_URL}/api/superadmin/services/${serviceId}/toggle/`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${adminToken}`,
@@ -68,7 +69,7 @@ const Services = () => {
 
     try {
       const adminToken = getAdminToken();
-      const response = await fetch(`http://127.0.0.1:8000/api/superadmin/services/${serviceId}/`, {
+      const response = await fetch(`${API_BASE_URL}/api/superadmin/services/${serviceId}/`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${adminToken}`,

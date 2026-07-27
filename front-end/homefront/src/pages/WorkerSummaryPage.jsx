@@ -1,7 +1,6 @@
+import { API_BASE_URL } from "../constants/api";
 // src/pages/WorkerSummary.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-
-const API_BASE_URL = 'http://localhost:8000';
 
 const WorkerSummary = () => {
   const [workerData, setWorkerData] = useState(null);

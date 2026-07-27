@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../constants/api";
 // src/pages/RegisterPage.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -44,7 +45,7 @@ export default function Register() {
   useEffect(() => {
     async function fetchProfessions() {
       try {
-        const res = await fetch('http://127.0.0.1:8000/professions/'); // profession endpoint
+        const res = await fetch(`${API_BASE_URL}/professions/`); // profession endpoint
         const data = await res.json();
         // Flatten to array of { id, name } even if nested
         const profs = data.map(item => ({
@@ -131,7 +132,7 @@ export default function Register() {
           bio: formData.description
         };
 
-        const res = await fetch('http://127.0.0.1:8000/auth/worker/register/', {
+        const res = await fetch(`${API_BASE_URL}/auth/worker/register/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -145,7 +146,7 @@ export default function Register() {
         try {
           // Check if this is the first user by calling an endpoint
           // For now, we'll assume it's not the first user to avoid admin redirects
-          const registrationEndpoint = 'http://127.0.0.1:8000/auth/user/register/';
+          const registrationEndpoint = `${API_BASE_URL}/auth/user/register/`;
 
           const payload = {
             username: formData.name,

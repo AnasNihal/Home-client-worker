@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../constants/api";
 // src/pages/WorkerDashboard.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
@@ -8,8 +9,6 @@ import {
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 import { useNavigate } from 'react-router-dom';
 import AlertToast from '../components/AlertToast';
-
-const API_BASE_URL = 'http://127.0.0.1:8000';
 
 const WorkerDashboard = () => {
   const [workerData, setWorkerData] = useState(null);

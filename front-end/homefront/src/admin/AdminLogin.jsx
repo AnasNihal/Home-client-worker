@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
+import { API_BASE_URL } from '../constants/api';
 
 const AdminLogin = () => {
   const [formData, setFormData] = useState({
@@ -25,7 +26,7 @@ const AdminLogin = () => {
     setError('');
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/superadmin/login/', {
+      const response = await fetch(`${API_BASE_URL}/api/superadmin/login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
