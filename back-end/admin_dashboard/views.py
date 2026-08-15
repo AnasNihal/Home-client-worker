@@ -5,8 +5,9 @@ from django.db.models import Sum, Q, Avg
 from django.utils import timezone
 from datetime import datetime
 from decimal import Decimal
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
 from rest_framework.response import Response
@@ -18,43 +19,6 @@ from .models import AdminActionLog
 User = get_user_model()
 
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def admin_login(request):
-    """
-    Admin login endpoint - only for superusers
-    """
-    username = request.data.get('username')
-    password = request.data.get('password')
-    
-    from django.contrib.auth import authenticate
-    user = authenticate(username=username, password=password)
-    
-    if not user:
-        return Response(
-            {"error": "Invalid credentials"}, 
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    
-    if not user.is_superuser:
-        return Response(
-            {"error": "Superuser access required"}, 
-            status=status.HTTP_403_FORBIDDEN
-        )
-    
-    refresh = RefreshToken.for_user(user)
-    
-    payload = {
-        'access': str(refresh.access_token),
-        'refresh': str(refresh),
-        'user': {
-            'username': user.username,
-            'email': user.email,
-            'is_superuser': True
-        }
-    }
-    
-    return Response(payload, status=status.HTTP_200_OK)
 
 
 def superuser_required(view_func):
@@ -106,6 +70,7 @@ def get_client_ip(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
 def admin_login(request):
     """
     Admin login - only allows superusers
@@ -329,12 +294,13 @@ def admin_users(request):
     )
 
 
-@api_view(["GET"])
+@api_view(["GET", "DELETE"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_user_detail(request, user_id):
     """
-    Full detail of one user
+    GET: Full detail of one user
+    DELETE: Permanently delete user and all their bookings
     """
     try:
         user = User.objects.get(id=user_id, is_staff=False)
@@ -342,6 +308,9 @@ def admin_user_detail(request, user_id):
         return Response(
             {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
         )
+
+    if request.method == "DELETE":
+        return admin_delete_user(request, user_id)
 
     # Profile info
     profile = getattr(user, "profiles", None)
@@ -540,12 +509,13 @@ def admin_workers(request):
     )
 
 
-@api_view(["GET"])
+@api_view(["GET", "DELETE"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_worker_detail(request, worker_id):
     """
-    Full detail of one worker
+    GET: Full detail of one worker
+    DELETE: Permanently delete a worker and their profile
     """
     try:
         worker = Worker.objects.get(id=worker_id)
@@ -553,6 +523,9 @@ def admin_worker_detail(request, worker_id):
         return Response(
             {"error": "Worker not found"}, status=status.HTTP_404_NOT_FOUND
         )
+
+    if request.method == "DELETE":
+        return admin_delete_worker(request, worker_id)
 
     # Services
     services = WorkerService.objects.filter(worker=worker)
@@ -819,12 +792,13 @@ def admin_bookings(request):
     )
 
 
-@api_view(["GET"])
+@api_view(["GET", "DELETE"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_booking_detail(request, booking_id):
     """
-    Full detail of one booking
+    GET: Full detail of one booking
+    DELETE: Permanently delete a booking record
     """
     try:
         booking = Booking.objects.get(id=booking_id)
@@ -832,6 +806,9 @@ def admin_booking_detail(request, booking_id):
         return Response(
             {"error": "Booking not found"}, status=status.HTTP_404_NOT_FOUND
         )
+
+    if request.method == "DELETE":
+        return admin_delete_booking(request, booking_id)
 
     return Response(
         {

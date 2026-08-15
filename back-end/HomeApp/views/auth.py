@@ -12,9 +12,10 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes, throttle_classes
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -32,6 +33,7 @@ from ..serializers import (
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
 def login(request):
     username = request.data.get('username')
     password = request.data.get('password')
@@ -53,6 +55,7 @@ def login(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
 def user_register(request):
     serializer = UserRegistrationSerializer(data = request.data)
     if serializer.is_valid():
@@ -106,6 +109,7 @@ def user_profile(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
 def worker_register(request):
     serializer = WorkerRegistrationSerializer( data = request.data)
     if serializer.is_valid():
