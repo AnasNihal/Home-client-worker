@@ -1,15 +1,49 @@
-    # Home Service
+# 🏠 Home Service
 
-A full-stack home services marketplace where customers can register, browse workers by profession, book a service, pay now with Stripe or pay later, manage profile details, and rate completed work. Workers can manage their profile, services, bookings, and booking status. The project also includes a JWT-protected super-admin dashboard for users, workers, bookings, services, and payments.
+A full-stack home services marketplace connecting customers with skilled workers — plumbers, electricians, cleaners, and more. Customers can browse, book, and pay for services, while workers manage their profiles, listings, and job status. A JWT-protected super-admin dashboard oversees the entire platform.
 
-## Tech Stack
+<p align="left">
+  <img alt="Django" src="https://img.shields.io/badge/Backend-Django%20%7C%20DRF-092E20?logo=django&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/Frontend-React-61DAFB?logo=react&logoColor=black">
+  <img alt="Stripe" src="https://img.shields.io/badge/Payments-Stripe-635BFF?logo=stripe&logoColor=white">
+  <img alt="CI" src="https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
+</p>
 
-- Backend: Django, Django REST Framework, Simple JWT, SQLite for local development, PostgreSQL-ready via `DATABASE_URL`
-- Frontend: React, React Router, Tailwind CSS, Heroicons
-- Payments: Stripe Checkout and webhook handling
-- Quality: Django API tests, CRA test runner, GitHub Actions CI
+---
 
-## Architecture
+## ✨ Features
+
+**Customers**
+- Register and manage a personal profile
+- Browse workers filtered by profession
+- Book a service and pay via **Stripe Checkout**, or choose to pay later
+- Track booking status and rate completed work
+
+**Workers**
+- Manage profile and offered services
+- View and respond to incoming bookings
+- Update job/booking status as work progresses
+
+**Admin**
+- JWT-protected super-admin dashboard
+- Manage users, workers, bookings, services, and payments in one place
+
+---
+
+## 🧱 Tech Stack
+
+| Layer      | Technology |
+|------------|------------|
+| Backend    | Django, Django REST Framework, Simple JWT |
+| Database   | SQLite (local dev), PostgreSQL-ready via `DATABASE_URL` |
+| Frontend   | React, React Router, Tailwind CSS, Heroicons |
+| Payments   | Stripe Checkout + webhook handling |
+| Quality    | Django API test suite, CRA test runner, GitHub Actions CI |
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
@@ -23,9 +57,16 @@ flowchart LR
     Webhook --> DB
 ```
 
-## Local Setup
+---
 
-1. Backend:
+## 🚀 Getting Started
+
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- npm
+
+### 1. Backend Setup
 
 ```bash
 cd back-end
@@ -37,7 +78,9 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-1. Frontend:
+The API will be available at `http://localhost:8000`.
+
+### 2. Frontend Setup
 
 ```bash
 cd front-end/homefront
@@ -46,23 +89,63 @@ npm install
 npm start
 ```
 
-## Test And Build
+The app will be available at `http://localhost:3000`.
 
+> Update the `.env` files with your own Stripe keys, database URL, and JWT secrets before running in a real environment.
+
+---
+
+## ✅ Testing & Build
+
+**Backend tests**
 ```bash
 cd back-end
 python manage.py test HomeApp
 ```
 
+**Frontend tests & production build**
 ```bash
 cd front-end/homefront
 npm test -- --watchAll=false
 npm run build
 ```
 
-## Deployment
+CI runs these checks automatically on every push via **GitHub Actions**.
 
-- Deployment guide: [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
-- Security checklist: [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)
-- Environment templates: [back-end/.env.example](back-end/.env.example), [front-end/homefront/.env.example](front-end/homefront/.env.example)
+---
 
-Live demo and screenshots should be added here after deploying the Django API and React frontend.
+## 📦 Deployment
+
+| Resource | Link |
+|---|---|
+| Deployment Guide | [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) |
+| Security Checklist | [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) |
+| Backend env template | [back-end/.env.example](back-end/.env.example) |
+| Frontend env template | [front-end/homefront/.env.example](front-end/homefront/.env.example) |
+
+> 🔗 **Live demo & screenshots** — coming soon, once the Django API and React frontend are deployed.
+
+---
+
+## 🗺️ Project Structure
+
+```
+Home-client-worker/
+├── back-end/                 # Django REST API
+│   └── HomeApp/               # Core app: users, workers, bookings, payments
+├── front-end/
+│   └── homefront/             # React client (customer, worker, admin views)
+├── DEPLOYMENT_GUIDE.md
+├── SECURITY_CHECKLIST.md
+└── README.md
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome. Feel free to open an issue or submit a pull request.
+
+## 📄 License
+
+This project is open source. Add your preferred license (e.g. MIT) here.
