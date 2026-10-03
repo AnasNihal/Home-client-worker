@@ -149,7 +149,9 @@ class Booking(models.Model):
         related_name="bookings"
     )
     date = models.DateField()
-    time = models.TimeField()
+    # Keep the slot as a dedicated field so the database can enforce that a
+    # worker cannot have two active bookings at the same date and time.
+    time_slot = models.TimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     notes = models.TextField(blank=True, null=True)
     payment_mode = models.CharField(max_length=10, choices=PAYMENT_MODE_CHOICES, default="later")
@@ -158,6 +160,15 @@ class Booking(models.Model):
     pay_later_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     stripe_checkout_session_id = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["worker", "date", "time_slot"],
+                condition=models.Q(status__in=["pending", "confirmed", "accepted"]),
+                name="unique_active_worker_booking_time_slot",
+            )
+        ]
 
     def __str__(self):
         return f"Booking {self.id} - {self.user.username} → {self.worker.name}"

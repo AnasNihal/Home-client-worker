@@ -5,7 +5,7 @@ import logging
 import stripe
 from django.conf import settings
 from django.core.mail import send_mail
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Avg
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -137,6 +137,7 @@ def create_stripe_checkout_session_new(request, worker_id):
         conflict = Booking.objects.filter(
             worker=worker,
             date=date_obj,
+            time_slot=time_obj,
             status__in=["pending", "accepted"]
         ).exists()
 
@@ -264,6 +265,7 @@ def create_booking_from_payment_session(request, session, metadata):
         worker = get_object_or_404(Worker, pk=worker_id)
         service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
         date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        time_obj = datetime.strptime(time, "%H:%M").time()
         base_amount = Decimal(amount_str)
 
         existing_by_session = Booking.objects.filter(
@@ -281,7 +283,7 @@ def create_booking_from_payment_session(request, session, metadata):
             user=request.user,
             worker=worker,
             date=date_obj,
-            time=time,
+            time_slot=time_obj,
             status__in=["pending", "accepted", "confirmed", "completed"]
         ).first()
 
@@ -295,13 +297,14 @@ def create_booking_from_payment_session(request, session, metadata):
         conflict = Booking.objects.filter(
             worker=worker,
             date=date_obj,
+            time_slot=time_obj,
             status__in=["pending", "accepted", "confirmed"]
         ).exists()
 
         if conflict:
             return Response(
-                {"detail": f"{worker.name} is already booked on {date_obj}. Please contact support."},
-                status=400
+                {"error": "This slot is already booked."},
+                status=status.HTTP_409_CONFLICT
             )
 
         # Create booking
@@ -314,28 +317,35 @@ def create_booking_from_payment_session(request, session, metadata):
 
         serializer = BookingSerializer(data=booking_data)
         if serializer.is_valid():
-            booking = serializer.save(
-                user=request.user,
-                worker=worker,
-                status="accepted",  # Auto-accept since payment is completed
-                amount=base_amount,
-                pay_later_fee=Decimal("0.00"),  # No fee for pay now
-                payment_status="paid",
-                stripe_checkout_session_id=session.id,
-            )
+            try:
+                with transaction.atomic():
+                    booking = serializer.save(
+                        user=request.user,
+                        worker=worker,
+                        status="accepted",  # Auto-accept since payment is completed
+                        amount=base_amount,
+                        pay_later_fee=Decimal("0.00"),  # No fee for pay now
+                        payment_status="paid",
+                        stripe_checkout_session_id=session.id,
+                    )
 
-            # Create payment record
-            Payment.objects.create(
-                booking=booking,
-                user=request.user,
-                worker=worker,
-                amount=base_amount,
-                currency=session.currency or "inr",
-                payment_status="paid",
-                stripe_session_id=session.id,
-                stripe_payment_intent_id=session.payment_intent,
-                paid_at=timezone.now()
-            )
+                    # Create payment record only if the booking insert succeeds.
+                    Payment.objects.create(
+                        booking=booking,
+                        user=request.user,
+                        worker=worker,
+                        amount=base_amount,
+                        currency=session.currency or "inr",
+                        payment_status="paid",
+                        stripe_session_id=session.id,
+                        stripe_payment_intent_id=session.payment_intent,
+                        paid_at=timezone.now()
+                    )
+            except IntegrityError:
+                return Response(
+                    {"error": "This slot is already booked."},
+                    status=status.HTTP_409_CONFLICT,
+                )
 
             return Response(
                 BookingSerializer(booking, context={"request": request}).data, 
@@ -344,6 +354,11 @@ def create_booking_from_payment_session(request, session, metadata):
         else:
             return Response(serializer.errors, status=400)
 
+    except IntegrityError:
+        return Response(
+            {"error": "This slot is already booked."},
+            status=status.HTTP_409_CONFLICT,
+        )
     except Exception as e:
         return Response({"detail": f"Failed to create booking: {str(e)}"}, status=500)
 

@@ -55,7 +55,7 @@ def worker_dashboard(request):
                 "user_name": b.user.username,
                 "services": [b.service.services],  # corrected field name
                 "date": b.date,
-                "time": b.time,
+                "time": b.time_slot,
                 "status": b.status,
             }
             for b in bookings

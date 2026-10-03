@@ -61,7 +61,7 @@ class HomeAppApiTests(APITestCase):
             "worker": self.worker,
             "service": self.service,
             "date": self.booking_date,
-            "time": time(10, 0),
+            "time_slot": time(10, 0),
             "status": "pending",
             "payment_mode": "later",
             "payment_status": "due",
@@ -237,6 +237,49 @@ class HomeAppApiTests(APITestCase):
         self.assertEqual(booking.payment_status, "due")
         self.assertEqual(booking.amount, Decimal("250.00"))
 
+    def test_second_user_cannot_book_an_active_worker_slot(self):
+        self.authenticate(self.user)
+        first_response = self.client.post(
+            f"/workers/{self.worker.id}/book/",
+            {
+                "service_id": self.service.id,
+                "date": self.booking_date.isoformat(),
+                "time": "10:00",
+                "payment_mode": "later",
+            },
+            format="json",
+        )
+        self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
+
+        second_user = User.objects.create_user(
+            username="second-customer",
+            email="second-customer@example.com",
+            password="strong-pass-123",
+            role="user",
+        )
+        self.authenticate(second_user)
+        second_response = self.client.post(
+            f"/workers/{self.worker.id}/book/",
+            {
+                "service_id": self.service.id,
+                "date": self.booking_date.isoformat(),
+                "time": "10:00",
+                "payment_mode": "later",
+            },
+            format="json",
+        )
+
+        self.assertEqual(second_response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(second_response.data, {"error": "This slot is already booked."})
+        self.assertEqual(
+            Booking.objects.filter(
+                worker=self.worker,
+                date=self.booking_date,
+                time_slot=time(10, 0),
+            ).count(),
+            1,
+        )
+
     def test_booking_rejects_past_date(self):
         self.authenticate(self.user)
 
@@ -268,7 +311,8 @@ class HomeAppApiTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data, {"error": "This slot is already booked."})
 
     def test_user_and_worker_booking_lists_are_scoped(self):
         booking = self.create_booking()

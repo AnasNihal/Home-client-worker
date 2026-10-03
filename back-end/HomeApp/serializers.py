@@ -241,6 +241,9 @@ class BookingSerializer(serializers.ModelSerializer):
         source="service",
         write_only=True
     )
+    # Preserve the existing API field name while storing it as time_slot in
+    # the model and database.
+    time = serializers.TimeField(source="time_slot")
 
     class Meta:
         model = Booking

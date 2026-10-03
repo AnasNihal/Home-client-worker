@@ -5,7 +5,7 @@ import logging
 import stripe
 from django.conf import settings
 from django.core.mail import send_mail
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Avg
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -63,6 +63,7 @@ def create_booking(request, worker_id):
         return Response({"detail": "Cannot book for past dates. Please select an upcoming date."}, status=400)
 
     # Validate time is within working hours (9 AM to 6 PM)
+    time_obj = None
     if time:
         try:
             time_obj = datetime.strptime(time, "%H:%M").time()
@@ -82,25 +83,12 @@ def create_booking(request, worker_id):
         user=request.user,
         worker=worker,
         date=date_obj,
-        time=time,
+        time_slot=time_obj,
         status__in=["pending", "accepted", "confirmed"]
     ).first()
 
     if existing_booking:
         return Response(BookingSerializer(existing_booking, context={"request": request}).data, status=200)
-
-    # Check for worker availability on the same date
-    conflict = Booking.objects.filter(
-        worker=worker,
-        date=date_obj,
-        status__in=["pending", "accepted", "confirmed"]
-    ).exists()
-
-    if conflict:
-        return Response(
-            {"detail": f"{worker.name} is already booked on {date_obj}. Please choose another day."},
-            status=400
-        )
 
     # Prepare serializer data
     data = {
@@ -123,14 +111,38 @@ def create_booking(request, worker_id):
         
         pay_later_fee = Decimal("20.00")
 
-        with transaction.atomic():
-            booking = serializer.save(
-                user=request.user,
-                worker=worker,
-                status="pending",
-                amount=base_amount,
-                pay_later_fee=pay_later_fee,
-                payment_status="due",
+        try:
+            with transaction.atomic():
+                # This check provides a fast, friendly response for bookings
+                # that already committed. The database constraint below is
+                # the authoritative protection for concurrent requests.
+                conflict = Booking.objects.filter(
+                    worker=worker,
+                    date=date_obj,
+                    time_slot=time_obj,
+                    status__in=["pending", "accepted", "confirmed"],
+                ).exists()
+
+                if conflict:
+                    return Response(
+                        {"error": "This slot is already booked."},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+
+                booking = serializer.save(
+                    user=request.user,
+                    worker=worker,
+                    status="pending",
+                    amount=base_amount,
+                    pay_later_fee=pay_later_fee,
+                    payment_status="due",
+                )
+        except IntegrityError:
+            # Two requests can pass the availability query at the same time;
+            # only the database constraint decides which insert wins.
+            return Response(
+                {"error": "This slot is already booked."},
+                status=status.HTTP_409_CONFLICT,
             )
 
         response_payload = BookingSerializer(booking, context={"request": request}).data
