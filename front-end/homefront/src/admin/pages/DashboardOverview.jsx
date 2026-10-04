@@ -1,416 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import { getAdminToken } from '../adminUtils';
+import React, { useEffect, useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { API_BASE_URL } from '../../constants/api';
+import { adminFetch, readAdminError } from '../adminUtils';
+import { API_ENDPOINTS } from '../../constants/api';
+
+const statusTone = { pending: 'bg-amber-50 text-amber-700', confirmed: 'bg-blue-50 text-blue-700', accepted: 'bg-blue-50 text-blue-700', in_progress: 'bg-violet-50 text-violet-700', completed: 'bg-emerald-50 text-emerald-700', canceled: 'bg-rose-50 text-rose-700' };
+const money = (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0);
+const date = (value) => value ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+const Stat = ({ label, value, hint, accent }) => (
+  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className={`mb-5 h-1.5 w-12 rounded-full ${accent}`} /><p className="text-sm font-medium text-slate-500">{label}</p><p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{value}</p>{hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}</div>
+);
 
 const DashboardOverview = () => {
-  const [stats, setStats] = useState({});
-  const [recentBookings, setRecentBookings] = useState([]);
-  const [recentPayments, setRecentPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const adminToken = getAdminToken();
-        if (!adminToken) {
-          setError('Please login first');
-          setLoading(false);
-          return;
-        }
-
-        // Fetch all data in parallel
-        const [statsResponse, bookingsResponse, paymentsResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/superadmin/stats/`, {
-            headers: { 'Authorization': `Bearer ${adminToken}` }
-          }),
-          fetch(`${API_BASE_URL}/api/superadmin/bookings/`, {
-            headers: { 'Authorization': `Bearer ${adminToken}` }
-          }),
-          fetch(`${API_BASE_URL}/api/superadmin/payments/`, {
-            headers: { 'Authorization': `Bearer ${adminToken}` }
-          })
-        ]);
-
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json();
-          setStats(statsData);
-        }
-
-        if (bookingsResponse.ok) {
-          const bookingsData = await bookingsResponse.json();
-          setRecentBookings(bookingsData.bookings?.slice(0, 5) || []);
-        }
-
-        if (paymentsResponse.ok) {
-          const paymentsData = await paymentsResponse.json();
-          setRecentPayments(paymentsData.payments?.slice(0, 5) || []);
-        }
-
-      } catch (err) {
-        console.error('Error:', err);
-        setError('Failed to fetch dashboard data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
+    let mounted = true;
+    adminFetch(API_ENDPOINTS.ADMIN_DASHBOARD).then(async (response) => {
+      if (!response.ok) throw new Error(await readAdminError(response, 'Unable to load dashboard'));
+      return response.json();
+    }).then((data) => mounted && setStats(data)).catch((err) => mounted && setError(err.message)).finally(() => mounted && setLoading(false));
+    return () => { mounted = false; };
   }, []);
 
-  const StatCard = ({ icon, title, value, subtitle, color, trend }) => (
-    <div style={{
-      backgroundColor: '#FFFFFF',
-      border: '1px solid #D1FAE5',
-      borderRadius: '12px',
-      padding: '24px',
-      position: 'relative',
-      overflow: 'hidden',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ 
-            color: '#6B7280', 
-            fontSize: '14px', 
-            fontWeight: '500', 
-            marginBottom: '8px' 
-          }}>
-            {title}
-          </div>
-          <div style={{ 
-            color: '#064E3B', 
-            fontSize: '32px', 
-            fontWeight: '700', 
-            marginBottom: '4px' 
-          }}>
-            {value}
-          </div>
-          {subtitle && (
-            <div style={{ color: '#9CA3AF', fontSize: '12px' }}>
-              {subtitle}
-            </div>
-          )}
-        </div>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          backgroundColor: `${color}20`,
-          borderRadius: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '24px'
-        }}>
-          {icon}
-        </div>
-      </div>
-      {trend && (
-        <div style={{
-          position: 'absolute',
-          top: '16px',
-          right: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          padding: '4px 8px',
-          backgroundColor: trend > 0 ? '#10B98120' : '#EF444420',
-          borderRadius: '6px',
-          fontSize: '12px',
-          color: trend > 0 ? '#10B981' : '#EF4444'
-        }}>
-          {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
-        </div>
-      )}
-    </div>
-  );
-
-  const BookingRow = ({ booking }) => (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      padding: '16px',
-      backgroundColor: '#FFFFFF',
-      border: '1px solid #D1FAE5',
-      borderRadius: '8px',
-      marginBottom: '12px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-    }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ color: '#064E3B', fontWeight: '600', marginBottom: '4px' }}>
-          #{booking.id} - {booking.service_name}
-        </div>
-        <div style={{ color: '#6B7280', fontSize: '14px' }}>
-          {booking.user_name} → {booking.worker_name}
-        </div>
-      </div>
-      <div style={{ textAlign: 'right' }}>
-        <div style={{ 
-          padding: '4px 8px',
-          borderRadius: '6px',
-          fontSize: '12px',
-          fontWeight: '500',
-          backgroundColor: 
-            booking.booking_status === 'pending' ? '#FCD34D20' :
-            booking.booking_status === 'confirmed' ? '#3B82F620' :
-            booking.booking_status === 'completed' ? '#10B98120' :
-            booking.booking_status === 'cancelled' ? '#EF444420' : '#6B728020',
-          color: 
-            booking.booking_status === 'pending' ? '#FCD34D' :
-            booking.booking_status === 'confirmed' ? '#3B82F6' :
-            booking.booking_status === 'completed' ? '#10B981' :
-            booking.booking_status === 'cancelled' ? '#EF4444' : '#6B7280'
-        }}>
-          {booking.booking_status}
-        </div>
-        <div style={{ color: '#9CA3AF', fontSize: '12px', marginTop: '4px' }}>
-          {new Date(booking.created_at).toLocaleDateString()}
-        </div>
-      </div>
-    </div>
-  );
-
-  const PaymentRow = ({ payment }) => (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      padding: '16px',
-      backgroundColor: '#FFFFFF',
-      border: '1px solid #D1FAE5',
-      borderRadius: '8px',
-      marginBottom: '12px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-    }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ color: '#064E3B', fontWeight: '600', marginBottom: '4px' }}>
-          #{payment.id} - {payment.customer_name || 'Customer'}
-        </div>
-        <div style={{ color: '#6B7280', fontSize: '14px' }}>
-          Booking #{payment.booking_id}
-        </div>
-      </div>
-      <div style={{ textAlign: 'right' }}>
-        <div style={{ color: '#064E3B', fontWeight: '600', marginBottom: '4px' }}>
-          ₹{payment.amount}
-        </div>
-        <div style={{ 
-          padding: '4px 8px',
-          borderRadius: '6px',
-          fontSize: '12px',
-          fontWeight: '500',
-          backgroundColor: 
-            payment.status === 'paid' ? '#10B98120' :
-            payment.status === 'pending' ? '#FCD34D20' :
-            payment.status === 'refunded' ? '#3B82F620' :
-            payment.status === 'failed' ? '#EF444420' : '#6B728020',
-          color: 
-            payment.status === 'paid' ? '#10B981' :
-            payment.status === 'pending' ? '#FCD34D' :
-            payment.status === 'refunded' ? '#3B82F6' :
-            payment.status === 'failed' ? '#EF4444' : '#6B7280'
-        }}>
-          {payment.status}
-        </div>
-      </div>
-    </div>
-  );
-
-  if (loading) {
-    return (
-      <AdminLayout>
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              border: '4px solid #334155',
-              borderTop: '4px solid #3B82F6',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto 16px'
-            }}></div>
-            <div style={{ color: '#94A3B8' }}>Loading dashboard...</div>
-          </div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  if (error) {
-    return (
-      <AdminLayout>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '400px' 
-        }}>
-          <div style={{ 
-            backgroundColor: '#1E293B', 
-            border: '1px solid #334155', 
-            borderRadius: '12px', 
-            padding: '32px', 
-            textAlign: 'center' 
-          }}>
-            <div style={{ color: '#EF4444', fontSize: '18px', marginBottom: '8px' }}>
-              Error loading dashboard
-            </div>
-            <div style={{ color: '#94A3B8' }}>{error}</div>
-          </div>
-        </div>
-      </AdminLayout>
-    );
-  }
+  if (loading) return <AdminLayout><div className="grid min-h-[420px] place-items-center"><div className="text-sm text-slate-500">Loading dashboard…</div></div></AdminLayout>;
+  if (error) return <AdminLayout><div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-700">{error}</div></AdminLayout>;
 
   return (
     <AdminLayout>
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        {/* Stats Grid */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-          gap: '24px', 
-          marginBottom: '32px' 
-        }}>
-          <StatCard
-            icon="👥"
-            title="Total Users"
-            value={stats.total_users || 0}
-            subtitle={`${stats.new_users_this_month || 0} new this month`}
-            color="#C6DE41"
-            trend={12}
-          />
-          <StatCard
-            icon="🔧"
-            title="Total Workers"
-            value={stats.total_workers || 0}
-            subtitle={`${stats.new_workers_this_month || 0} new this month`}
-            color="#10B981"
-            trend={8}
-          />
-          <StatCard
-            icon="📅"
-            title="Total Bookings"
-            value={stats.total_bookings || 0}
-            subtitle={`${stats.pending_bookings || 0} pending`}
-            color="#FCD34D"
-            trend={15}
-          />
-          <StatCard
-            icon="💰"
-            title="Total Revenue"
-            value={`₹${stats.total_revenue || 0}`}
-            subtitle={`₹${stats.revenue_this_month || 0} this month`}
-            color="#8B5CF6"
-            trend={23}
-          />
+      <div className="mx-auto max-w-7xl space-y-8">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="text-sm font-semibold text-emerald-600">Good to see you</p><h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">Marketplace overview</h2><p className="mt-1 text-slate-500">A live snapshot of Olton’s customers, workers and bookings.</p></div><div className="rounded-xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">Updated {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div></div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Stat label="Total customers" value={stats.total_users} hint={`${stats.new_users_this_month || 0} joined this month`} accent="bg-emerald-500" /><Stat label="Total workers" value={stats.total_workers} hint={`${stats.new_workers_this_month || 0} registered this month`} accent="bg-blue-500" /><Stat label="Services" value={stats.total_services} hint="Worker-provided services" accent="bg-violet-500" /><Stat label="Total bookings" value={stats.total_bookings} hint={`${stats.pending_bookings || 0} waiting for action`} accent="bg-amber-500" /></div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Stat label="Pending" value={stats.pending_bookings} accent="bg-amber-500" /><Stat label="In progress" value={stats.in_progress_bookings} accent="bg-violet-500" /><Stat label="Completed" value={stats.completed_bookings} accent="bg-emerald-500" /><Stat label="Cancelled" value={stats.cancelled_bookings} accent="bg-rose-500" /></div>
+        <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h3 className="font-semibold text-slate-950">Recent bookings</h3><p className="text-xs text-slate-500">Latest marketplace activity</p></div><a href="/admin/bookings" className="text-sm font-semibold text-emerald-600 hover:text-emerald-700">View all</a></div><div className="divide-y divide-slate-100">{(stats.recent_bookings || []).length === 0 && <div className="p-8 text-center text-sm text-slate-500">No bookings yet.</div>}{(stats.recent_bookings || []).map((booking) => <div key={booking.id} className="flex items-center justify-between gap-4 px-5 py-4"><div className="min-w-0"><p className="truncate font-semibold text-slate-800">#{booking.id} · {booking.service_name}</p><p className="mt-1 truncate text-sm text-slate-500">{booking.user_name} → {booking.worker_name} · {date(booking.scheduled_date)}</p></div><div className="text-right"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone[booking.booking_status] || 'bg-slate-100 text-slate-600'}`}>{booking.booking_status.replace('_', ' ')}</span><p className="mt-1 text-xs text-slate-500">{money(booking.total_amount)}</p></div></div>)}</div></section>
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h3 className="font-semibold text-slate-950">Recent registrations</h3><p className="text-xs text-slate-500">Newest customers and workers</p></div><div className="divide-y divide-slate-100">{(stats.recent_users || []).map((user) => <div key={`u-${user.id}`} className="flex items-center justify-between px-5 py-3"><div><p className="font-medium text-slate-800">{user.full_name}</p><p className="text-xs text-slate-500">Customer · {user.email || user.username}</p></div><span className="text-xs text-slate-400">{date(user.date_joined)}</span></div>)}{(stats.recent_workers || []).map((worker) => <div key={`w-${worker.id}`} className="flex items-center justify-between px-5 py-3"><div><p className="font-medium text-slate-800">{worker.name}</p><p className="text-xs text-slate-500">Worker · {worker.category}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold capitalize text-slate-600">{worker.verification_status}</span></div>)}</div></section>
         </div>
-
-        {/* Recent Activity */}
-        <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '32px' }}>
-          {/* Recent Bookings */}
-          <div>
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              marginBottom: '20px' 
-            }}>
-              <h2 style={{ color: '#064E3B', fontSize: '18px', fontWeight: '600', margin: 0 }}>
-                Recent Bookings
-              </h2>
-              <button style={{
-                backgroundColor: '#FCD34D',
-                color: '#0C7C59',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '8px 16px',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s ease'
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#FDE68A'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#FCD34D'}>
-                View All
-              </button>
-            </div>
-            <div>
-              {recentBookings.length > 0 ? (
-                recentBookings.map(booking => (
-                  <BookingRow key={booking.id} booking={booking} />
-                ))
-              ) : (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px',
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #D1FAE5',
-                  borderRadius: '8px',
-                  color: '#6B7280'
-                }}>
-                  No recent bookings
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Recent Payments */}
-          <div>
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              marginBottom: '20px' 
-            }}>
-              <h2 style={{ color: '#064E3B', fontSize: '18px', fontWeight: '600', margin: 0 }}>
-                Recent Payments
-              </h2>
-              <button style={{
-                backgroundColor: '#FCD34D',
-                color: '#0C7C59',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '8px 16px',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s ease'
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#FDE68A'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#FCD34D'}>
-                View All
-              </button>
-            </div>
-            <div>
-              {recentPayments.length > 0 ? (
-                recentPayments.map(payment => (
-                  <PaymentRow key={payment.id} payment={payment} />
-                ))
-              ) : (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px',
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #D1FAE5',
-                  borderRadius: '8px',
-                  color: '#6B7280'
-                }}>
-                  No recent payments
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <div className="grid gap-4 sm:grid-cols-2"><div className="rounded-2xl bg-slate-950 p-6 text-white"><p className="text-sm text-slate-400">Paid revenue</p><p className="mt-2 text-3xl font-bold">{money(stats.total_revenue)}</p><p className="mt-2 text-sm text-slate-400">{money(stats.revenue_this_month)} this month</p></div><div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6"><p className="text-sm font-semibold text-emerald-700">Operations health</p><p className="mt-2 text-3xl font-bold text-emerald-950">{stats.pending_bookings || 0}</p><p className="mt-2 text-sm text-emerald-700">bookings need review</p></div></div>
       </div>
-
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
     </AdminLayout>
   );
 };

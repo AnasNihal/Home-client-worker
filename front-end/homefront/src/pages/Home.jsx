@@ -1,7 +1,8 @@
   import HeroSection from "../components/HeroSection"
   import AboutSection from "../components/AboutSection"
   import SponsorsSection from "../components/Sponsor"
-  import BookingSection from "../components/SimpleBookingSection"
+import BookingSection from "../components/SimpleBookingSection"
+import AiBookingAssistant from "../components/AiBookingAssistant"
     import React from "react";
   import { Link } from "react-router-dom";
   
@@ -108,6 +109,7 @@ const heroImg =
 
                 <SponsorsSection />
                 <AboutSection/>
+                <AiBookingAssistant />
                 <BookingSection/>
             </>
         )

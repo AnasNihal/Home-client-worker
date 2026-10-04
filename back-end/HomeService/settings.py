@@ -44,8 +44,18 @@ if not SECRET_KEY:
         SECRET_KEY = "django-insecure-ud%zbuh!g)7b@46erswlkg!lrv$oo&kw(s07l9&@^2@j2(4**1"
     else:
         raise ImproperlyConfigured("The SECRET_KEY environment variable must be set in production.")
+if not DEBUG and (
+    len(SECRET_KEY) < 50
+    or SECRET_KEY.startswith("django-insecure-")
+    or SECRET_KEY.startswith("replace-with-")
+):
+    raise ImproperlyConfigured("Use a long, random SECRET_KEY in production.")
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",") if os.getenv("ALLOWED_HOSTS") else []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+]
 
 
 # Application definition
@@ -77,19 +87,22 @@ MIDDLEWARE = [
     "HomeApp.middleware.RequestLoggingMiddleware",
 ]
 
-# CORS Configuration
+# CORS Configuration. Local development origins must not remain enabled in
+# production, where only the configured frontend should be trusted.
+frontend_url = os.getenv("FRONTEND_BASE_URL")
+if not DEBUG and not frontend_url:
+    raise ImproperlyConfigured("FRONTEND_BASE_URL must be set in production.")
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
-]
+] if DEBUG else []
 
 # Allow credentials for cookies
 CORS_ALLOW_CREDENTIALS = True
 
-# For production, read from environment variable
-frontend_url = os.getenv("FRONTEND_BASE_URL")
 if frontend_url:
     CORS_ALLOWED_ORIGINS.append(frontend_url)
 
@@ -101,9 +114,18 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_REDIRECT_EXEMPT = []
     SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     X_FRAME_OPTIONS = 'DENY'
+
+# Keep authentication cookies inaccessible to JavaScript and restrict when
+# browsers attach them cross-site. JWT API authentication remains header-based.
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 
 ROOT_URLCONF = "HomeService.urls"
 

@@ -6,7 +6,7 @@ import stripe
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.mail import send_mail
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Avg
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -39,7 +39,7 @@ def login(request):
     password = request.data.get('password')
     user = authenticate(username=username, password=password)
 
-    if not user:
+    if not user or not user.is_active:
         return Response({"detail": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
     refresh = RefreshToken.for_user(user)
@@ -59,7 +59,11 @@ def login(request):
 def user_register(request):
     serializer = UserRegistrationSerializer(data = request.data)
     if serializer.is_valid():
-        user  = serializer.save()
+        try:
+            with transaction.atomic():
+                user = serializer.save()
+        except IntegrityError:
+            return Response({"detail": "That username or email is already in use."}, status=status.HTTP_400_BAD_REQUEST)
         
         # Generate tokens for the new user
         from rest_framework_simplejwt.tokens import RefreshToken
@@ -113,6 +117,10 @@ def user_profile(request):
 def worker_register(request):
     serializer = WorkerRegistrationSerializer( data = request.data)
     if serializer.is_valid():
-       serializer.save()
+       try:
+           with transaction.atomic():
+               serializer.save()
+       except IntegrityError:
+           return Response({"detail": "That username or email is already in use."}, status=status.HTTP_400_BAD_REQUEST)
        return Response({'message':"Worker Registered"},status=status.HTTP_200_OK)
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)

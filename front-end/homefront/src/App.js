@@ -32,13 +32,16 @@ import Users from './admin/pages/UsersPage';
 import Workers from './admin/pages/WorkersPage';
 import Bookings from './admin/pages/BookingsPage';
 import PaymentsPage from './admin/pages/PaymentsPage';
+import Services from './admin/pages/Services';
+import ReviewsPage from './admin/pages/ReviewsPage';
+import AiSupportWidget from './components/AiSupportWidget';
 
 
 
 function App() {
   const location = useLocation();
   const hideLayout = ["/login", "/register", "/worker/dashboard", "/worker/summary"].includes(location.pathname) || 
-                        ["/admin/login", "/admin/dashboard", "/admin/users", "/admin/workers", "/admin/bookings", "/admin/payments", "/admin/services", "/admin/test"].includes(location.pathname);
+                        ["/admin/login", "/admin/dashboard", "/admin/users", "/admin/workers", "/admin/bookings", "/admin/payments", "/admin/services", "/admin/reviews", "/admin/test"].includes(location.pathname);
 
   // Get background color based on route
   const getBackgroundClass = () => {
@@ -152,8 +155,19 @@ function App() {
               <PaymentsPage />
             </AdminRouteGuard>
           } />
+          <Route path="/admin/services" element={
+            <AdminRouteGuard>
+              <Services />
+            </AdminRouteGuard>
+          } />
+          <Route path="/admin/reviews" element={
+            <AdminRouteGuard>
+              <ReviewsPage />
+            </AdminRouteGuard>
+          } />
         </Routes>
       </main>
+      {!hideLayout && <AiSupportWidget />}
       {!hideLayout && <Footer />}
     </>
   );
@@ -166,4 +180,3 @@ export default function RootApp() {
     </BrowserRouter>
   );
 }
-

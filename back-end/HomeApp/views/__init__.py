@@ -23,3 +23,10 @@ from .workers import (
     worker_details,
     worker_list,
 )
+from .ai import (
+    analyze_service_image,
+    moderate_review,
+    recommend_workers,
+    service_intake,
+    support_chat,
+)

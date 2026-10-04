@@ -28,6 +28,13 @@ urlpatterns = [
     path("workers/<int:worker_id>/rate/", views.rate_worker, name="rate-worker"),
     path("professions/", views.profession_list, name="profession-list"),
 
+    # AI-assisted discovery and support
+    path("ai/service-intake/", views.service_intake, name="ai-service-intake"),
+    path("ai/recommend-workers/", views.recommend_workers, name="ai-recommend-workers"),
+    path("ai/moderate-review/", views.moderate_review, name="ai-moderate-review"),
+    path("ai/support-chat/", views.support_chat, name="ai-support-chat"),
+    path("ai/analyze-image/", views.analyze_service_image, name="ai-analyze-image"),
+
     # Booking URLs
     path("workers/<int:worker_id>/book/", views.create_booking, name="create_booking"),
     path("payments/stripe/checkout/<int:booking_id>/", views.create_stripe_checkout_session, name="create_stripe_checkout_session"),

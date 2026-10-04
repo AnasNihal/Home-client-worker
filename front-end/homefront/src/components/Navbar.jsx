@@ -10,22 +10,25 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   // Get user data from localStorage
-  const { user } = getAuthData();
+  const { user: authUser } = getAuthData();
+  const username = authUser?.username || "";
+  const email = authUser?.email || "";
+  const role = authUser?.role || "";
   const [userProfile, setUserProfile] = useState(null);
 
   // Set user profile from localStorage
   useEffect(() => {
-    if (user) {
+    if (username || email || role) {
       setUserProfile({
-        name: user.username || 'User',
-        email: user.email || '',
+        name: username || 'User',
+        email,
         avatar: null,
-        role: user.role || 'user',
+        role: role || 'user',
       });
     } else {
       setUserProfile(null);
     }
-  }, [user]);
+  }, [username, email, role]);
 
   // Scroll behavior
   const prevScrollYRef = useRef(0);

@@ -39,14 +39,19 @@ def create_booking(request, worker_id):
     if request.user.role.lower() != "user":
         return Response({"detail": "Only users can book services"}, status=403)
 
-    worker = get_object_or_404(Worker, pk=worker_id)
+    worker = get_object_or_404(
+        Worker,
+        pk=worker_id,
+        is_active=True,
+        verification_status="approved",
+    )
     service_id = request.data.get("service_id")
     date_str = request.data.get("date")
     time = request.data.get("time")
     payment_mode = (request.data.get("payment_mode") or "later").lower()
 
-    if not service_id or not date_str:
-        return Response({"detail": "Service and date must be provided"}, status=400)
+    if not service_id or not date_str or not time:
+        return Response({"detail": "Service, date, and time must be provided"}, status=400)
 
     if payment_mode not in ["later", "now"]:
         return Response({"detail": "Invalid payment_mode. Use 'later' or 'now'."}, status=400)
@@ -84,7 +89,7 @@ def create_booking(request, worker_id):
         worker=worker,
         date=date_obj,
         time_slot=time_obj,
-        status__in=["pending", "accepted", "confirmed"]
+        status__in=["pending", "accepted", "confirmed", "in_progress"]
     ).first()
 
     if existing_booking:
@@ -99,7 +104,12 @@ def create_booking(request, worker_id):
 
     serializer = BookingSerializer(data={**data, "payment_mode": payment_mode})
     if serializer.is_valid():
-        service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
+        service = get_object_or_404(
+            WorkerService,
+            pk=service_id,
+            worker=worker,
+            is_active=True,
+        )
 
         base_amount = Decimal(service.price or 0)
         
@@ -120,7 +130,7 @@ def create_booking(request, worker_id):
                     worker=worker,
                     date=date_obj,
                     time_slot=time_obj,
-                    status__in=["pending", "accepted", "confirmed"],
+                    status__in=["pending", "accepted", "confirmed", "in_progress"],
                 ).exists()
 
                 if conflict:

@@ -18,6 +18,8 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from ..models import Booking, Payment, Profession, UserProfile, Worker, WorkerRating, WorkerService
+from ..ai_service import moderate_text
+from ..image_validation import validate_uploaded_image
 from ..serializers import (
     BookingSerializer,
     ProfessionSerializer,
@@ -39,12 +41,12 @@ def worker_dashboard(request):
 
     if request.method == 'GET':
         # Serialize worker basic info
-        worker_data = WorkerSerializer(worker).data  
+        worker_data = WorkerSerializer(worker, context={"request": request}).data
 
         # Get all bookings for this worker
         completed_jobs = Booking.objects.filter(worker=worker, status="completed").count()
 
-        ratings_qs = WorkerRating.objects.filter(worker=worker)
+        ratings_qs = WorkerRating.objects.filter(worker=worker, moderation_status="approved")
         avg_rating = ratings_qs.aggregate(Avg('rating'))['rating__avg']
         total_ratings = ratings_qs.count()
 
@@ -61,7 +63,10 @@ def worker_dashboard(request):
             for b in bookings
         ]
 
-        reviews = WorkerRating.objects.filter(worker=worker).select_related("user").order_by("-created_at")
+        reviews = WorkerRating.objects.filter(
+            worker=worker,
+            moderation_status="approved",
+        ).select_related("user").order_by("-created_at")
         reviews_list = [
             {
                 "id": r.id,  # pyright: ignore
@@ -88,13 +93,18 @@ def worker_dashboard(request):
     elif request.method == "PUT":
         # If an image is uploaded
         if "image" in request.FILES:
-            worker.image = request.FILES["image"]
+            image = request.FILES["image"]
+            try:
+                validate_uploaded_image(image, 5 * 1024 * 1024)
+            except ValueError as exc:
+                return Response({"detail": str(exc)}, status=400)
+            worker.image = image
             worker.save()
-            serializer = WorkerSerializer(worker)
+            serializer = WorkerSerializer(worker, context={"request": request})
             return Response(serializer.data)
 
         # Otherwise, handle JSON/profile updates
-        serializer = WorkerSerializer(worker, data=request.data, partial=True)
+        serializer = WorkerSerializer(worker, data=request.data, partial=True, context={"request": request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -132,6 +142,16 @@ def edit_service(request, service_id):
         return Response(serializer.errors, status=400)
     
     elif request.method == 'DELETE':
+        # A hard delete would cascade into the booking history because the
+        # service FK uses CASCADE. Preserve those records by deactivating a
+        # service that has already been used.
+        if service.bookings.exists():
+            service.is_active = False
+            service.save(update_fields=["is_active"])
+            return Response(
+                {"detail": "This service has booking history and was deactivated instead."},
+                status=200,
+            )
         service.delete()
         return Response(status=204)
 
@@ -140,25 +160,28 @@ def edit_service(request, service_id):
 
 @api_view(['GET'])
 def worker_list(request):
-    workers = Worker.objects.select_related('user', 'profession').all()
+    workers = Worker.objects.select_related('user', 'profession').filter(
+        is_active=True,
+        verification_status="approved",
+    )
     serializer = WorkerSerializer(workers, many=True, context={'request': request})
     return Response(serializer.data)
 
 
 @api_view(['GET'])
 def worker_details(request, pk):
-    worker = get_object_or_404(Worker, pk=pk)
+    worker = get_object_or_404(Worker, pk=pk, is_active=True, verification_status="approved")
     serializer = WorkerSerializer(worker, context={'request': request})
 
     # ✅ Completed jobs count
     completed_jobs = Booking.objects.filter(worker=worker, status="completed").count()
 
     # Fetch reviews directly from WorkerRating
-    reviews = WorkerRating.objects.filter(worker=worker).select_related("user").order_by("-created_at")
+    reviews = WorkerRating.objects.filter(worker=worker, moderation_status="approved").select_related("user").order_by("-created_at")
     reviews_list = [
         {
             "id": r.id,  # pyright: ignore
-            "user": r.user.username,
+            "user": "Verified customer",
             "rating": r.rating,
             "review": r.review,
             "created_at": r.created_at.strftime("%Y-%m-%d %H:%M")  # optional
@@ -180,11 +203,14 @@ def rate_worker(request, worker_id):
     if request.user.role.lower() != "user":
         return Response({"detail": "Only users can rate workers"}, status=403)
 
-    worker = get_object_or_404(Worker, pk=worker_id)
+    worker = get_object_or_404(Worker, pk=worker_id, is_active=True, verification_status="approved")
 
     # Get rating & review
     rating_value = request.data.get("rating")
     review_text = request.data.get("review", "").strip()
+
+    if len(review_text) > 2000:
+        return Response({"error": "Review must be 2000 characters or fewer."}, status=400)
 
     if not rating_value:
         return Response({"error": "Rating is required"}, status=400)
@@ -197,20 +223,24 @@ def rate_worker(request, worker_id):
     if rating_value < 1 or rating_value > 5:
         return Response({"error": "Rating must be between 1 and 5"}, status=400)
 
+    moderation = moderate_text(review_text) if review_text else {"flagged": False, "reason": ""}
+    if moderation["flagged"]:
+        return Response({"error": "This review needs revision before it can be published.", "moderation": moderation}, status=400)
+
     # Create or update rating with review
     WorkerRating.objects.update_or_create(
         worker=worker,
         user=request.user,
-        defaults={"rating": rating_value, "review": review_text}
+        defaults={"rating": rating_value, "review": review_text, "moderation_status": "approved"}
     )
 
     # Calculate updated stats
-    avg = WorkerRating.objects.filter(worker=worker).aggregate(Avg('rating'))['rating__avg']
-    total = WorkerRating.objects.filter(worker=worker).count()
+    avg = WorkerRating.objects.filter(worker=worker, moderation_status="approved").aggregate(Avg('rating'))['rating__avg']
+    total = WorkerRating.objects.filter(worker=worker, moderation_status="approved").count()
 
     # Fetch all reviews
-    reviews = WorkerRating.objects.filter(worker=worker).select_related("user").values(
-        "id", "rating", "review", "user__username"
+    reviews = WorkerRating.objects.filter(worker=worker, moderation_status="approved").values(
+        "id", "rating", "review"
     )
 
     return Response({

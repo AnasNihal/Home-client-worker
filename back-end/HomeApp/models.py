@@ -54,6 +54,12 @@ class Profession(models.Model):
 
 
 class Worker(models.Model):
+    VERIFICATION_STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+    )
+
     user = models.OneToOneField(CustomerUser,on_delete=models.CASCADE ,related_name='worker_profile', null=True, blank=True)
     image = models.ImageField(upload_to='worker_image/', blank=True, null=True)
     name = models.CharField(max_length=255)
@@ -68,13 +74,21 @@ class Worker(models.Model):
     )   
     profession = models.ForeignKey(Profession,on_delete=models.CASCADE)
     experience = models.CharField(max_length=50, null=True, blank=True)
-    location = models.CharField(max_length=50, null=True)
+    location = models.CharField(max_length=255, null=True, blank=True)
     bio = models.TextField(blank=True, null=True)
     email = models.EmailField(max_length=255, unique=True, blank=True, null=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)  # example: 4.50
     review = models.TextField(blank=True, null=True)  # user reviews / feedback
-    location = models.CharField(max_length=255, blank=True, null=True)  # e.g. "Bangalore"
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    service_radius_km = models.PositiveIntegerField(default=25)
+    working_hours = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
+    verification_status = models.CharField(
+        max_length=20,
+        choices=VERIFICATION_STATUS_CHOICES,
+        default="approved",
+    )
     availability_dates = models.JSONField(default=list, blank=True)
 
     def __str__(self):
@@ -90,6 +104,7 @@ class WorkerService(models.Model):
         default=Decimal("100.00"),
         validators=[MinValueValidator(Decimal("100.00"))]
     )
+    is_active = models.BooleanField(default=True)
 
     def save(self, *args, **kwargs):
         if self.price is not None and self.price < Decimal("100.00"):
@@ -104,6 +119,8 @@ class WorkerRating(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     rating = models.IntegerField(default=1)  # 1–5 stars
     review = models.TextField(blank=True, null=True)  # ✅ store review
+    moderation_status = models.CharField(max_length=20, default="approved")
+    moderation_reason = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -115,6 +132,7 @@ class Booking(models.Model):
         ("pending", "Pending"),
         ("confirmed", "Confirmed"),
         ("accepted", "Accepted"),
+        ("in_progress", "In Progress"),
         ("declined", "Declined"),   
         ("completed", "Completed"),
         ("canceled", "Canceled"),
@@ -165,7 +183,7 @@ class Booking(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["worker", "date", "time_slot"],
-                condition=models.Q(status__in=["pending", "confirmed", "accepted"]),
+                condition=models.Q(status__in=["pending", "confirmed", "accepted", "in_progress"]),
                 name="unique_active_worker_booking_time_slot",
             )
         ]
@@ -195,5 +213,18 @@ class Payment(models.Model):
         return f"Payment {self.id} for Booking {self.booking.id} - {self.payment_status}"
 
 
+class ServiceRequest(models.Model):
+    """A normalized request created by the AI intake flow."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="service_requests")
+    original_text = models.TextField()
+    profession = models.ForeignKey(Profession, on_delete=models.SET_NULL, null=True, blank=True)
+    normalized_service = models.CharField(max_length=255, blank=True)
+    location = models.CharField(max_length=255, blank=True)
+    preferred_date = models.DateField(null=True, blank=True)
+    preferred_time = models.TimeField(null=True, blank=True)
+    budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    ai_confidence = models.DecimalField(max_digits=4, decimal_places=3, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
 
-
+    class Meta:
+        ordering = ["-created_at"]

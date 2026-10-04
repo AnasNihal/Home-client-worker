@@ -40,7 +40,7 @@ export default function WorkersSection() {
           const rating = w.ratings?.average_rating ?? null;
           const reviews = w.ratings?.total_ratings ?? 0;
           const location = w.location ?? "";
-          const availability = w.availability ?? (Math.random() > 0.5 ? "Available Today" : "Available Tomorrow");
+          const availability = w.availability || "Contact for Availability";
 
           return {
             id,
@@ -223,7 +223,7 @@ function WorkerCard({ id, image, name, profession, experience, rating, reviews, 
               <p className="text-primary font-semibold text-sm sm:text-base md:text-lg">{profession}</p>
             </div>
             <span className={`ml-3 px-3 py-1 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap ${isAvailableToday ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-              {isAvailableToday ? "Available Today" : "Tomorrow"}
+              {availability || "Contact for Availability"}
             </span>
           </div>
           <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">

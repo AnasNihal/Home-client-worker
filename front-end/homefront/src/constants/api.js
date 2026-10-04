@@ -35,6 +35,10 @@ export const API_ENDPOINTS = {
   
   // Services
   PROFESSIONS: `${API_BASE_URL}/professions/`,
+  AI_SERVICE_INTAKE: `${API_BASE_URL}/ai/service-intake/`,
+  AI_RECOMMEND_WORKERS: `${API_BASE_URL}/ai/recommend-workers/`,
+  AI_SUPPORT_CHAT: `${API_BASE_URL}/ai/support-chat/`,
+  AI_ANALYZE_IMAGE: `${API_BASE_URL}/ai/analyze-image/`,
   
   // Admin
   ADMIN_LOGIN: `${API_BASE_URL}/api/superadmin/login/`,
@@ -44,6 +48,16 @@ export const API_ENDPOINTS = {
   ADMIN_BOOKINGS: `${API_BASE_URL}/api/superadmin/bookings/`,
   ADMIN_PAYMENTS: `${API_BASE_URL}/api/superadmin/payments/`,
   ADMIN_SERVICES: `${API_BASE_URL}/api/superadmin/services/`,
+  ADMIN_SERVICE: (id) => `${API_BASE_URL}/api/superadmin/services/${id}/`,
+  ADMIN_REVIEWS: `${API_BASE_URL}/api/superadmin/reviews/`,
+  ADMIN_REVIEW: (id) => `${API_BASE_URL}/api/superadmin/reviews/${id}/`,
+  ADMIN_USER: (id) => `${API_BASE_URL}/api/superadmin/users/${id}/`,
+  ADMIN_USER_STATUS: (id) => `${API_BASE_URL}/api/superadmin/users/${id}/toggle-status/`,
+  ADMIN_WORKER: (id) => `${API_BASE_URL}/api/superadmin/workers/${id}/`,
+  ADMIN_WORKER_STATUS: (id) => `${API_BASE_URL}/api/superadmin/workers/${id}/toggle-availability/`,
+  ADMIN_WORKER_VERIFY: (id) => `${API_BASE_URL}/api/superadmin/workers/${id}/verify/`,
+  ADMIN_BOOKING: (id) => `${API_BASE_URL}/api/superadmin/bookings/${id}/`,
+  ADMIN_BOOKING_CANCEL: (id) => `${API_BASE_URL}/api/superadmin/bookings/${id}/cancel/`,
 };
 
 export default API_ENDPOINTS;

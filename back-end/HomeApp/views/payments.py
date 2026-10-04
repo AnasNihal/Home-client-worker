@@ -40,6 +40,8 @@ def create_stripe_checkout_session(request, booking_id):
     
     if booking.payment_status == "paid":
         return Response({"detail": "Booking is already paid"}, status=400)
+    if booking.status in {"canceled", "completed", "declined"}:
+        return Response({"detail": "This booking is not payable."}, status=400)
 
     if not settings.STRIPE_SECRET_KEY:
         return Response({"detail": "Stripe is not configured. Add STRIPE_SECRET_KEY."}, status=500)
@@ -85,7 +87,12 @@ def create_stripe_checkout_session_new(request, worker_id):
     if request.user.role.lower() != "user":
         return Response({"detail": "Only users can book services"}, status=403)
 
-    worker = get_object_or_404(Worker, pk=worker_id)
+    worker = get_object_or_404(
+        Worker,
+        pk=worker_id,
+        is_active=True,
+        verification_status="approved",
+    )
     service_id = request.data.get("service_id")
     date_str = request.data.get("date")
     time = request.data.get("time")
@@ -97,7 +104,12 @@ def create_stripe_checkout_session_new(request, worker_id):
         return Response({"detail": "Stripe is not configured. Add STRIPE_SECRET_KEY."}, status=500)
 
     # Get service and calculate amount
-    service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
+    service = get_object_or_404(
+        WorkerService,
+        pk=service_id,
+        worker=worker,
+        is_active=True,
+    )
     base_amount = Decimal(service.price or 0)
     
     MINIMUM_AMOUNT_INR = Decimal("100.00")
@@ -138,7 +150,7 @@ def create_stripe_checkout_session_new(request, worker_id):
             worker=worker,
             date=date_obj,
             time_slot=time_obj,
-            status__in=["pending", "accepted"]
+            status__in=["pending", "accepted", "confirmed", "in_progress"]
         ).exists()
 
         if conflict:
@@ -182,7 +194,8 @@ def create_stripe_checkout_session_new(request, worker_id):
     except ValueError:
         return Response({"detail": "Invalid date format. Use YYYY-MM-DD."}, status=400)
     except Exception as e:
-        return Response({"detail": f"Failed to create Stripe session: {str(e)}"}, status=500)
+        logging.getLogger(__name__).exception("Stripe checkout session creation failed")
+        return Response({"detail": "Unable to create the payment session right now."}, status=502)
 
 
 @api_view(["GET"])
@@ -209,6 +222,10 @@ def confirm_stripe_payment(request):
     
     # Check if this is a new booking flow (no booking_id in metadata)
     if not metadata.get("booking_id") and metadata.get("worker_id"):
+        if str(metadata.get("user_id")) != str(request.user.id):
+            return Response({"detail": "This payment session does not belong to you."}, status=403)
+        if getattr(session, "payment_status", None) != "paid":
+            return Response({"detail": "Payment has not been completed."}, status=402)
         return create_booking_from_payment_session(request, session, metadata)
     
     # Existing booking flow
@@ -249,6 +266,11 @@ def create_booking_from_payment_session(request, session, metadata):
     try:
         from django.utils import timezone
         from ..models import Payment
+
+        if getattr(session, "payment_status", None) != "paid":
+            return Response({"detail": "Payment has not been completed."}, status=402)
+        if str(metadata.get("user_id")) != str(request.user.id):
+            return Response({"detail": "This payment session does not belong to you."}, status=403)
         
         # Extract metadata
         worker_id = metadata.get("worker_id")
@@ -262,11 +284,27 @@ def create_booking_from_payment_session(request, session, metadata):
             return Response({"detail": "Invalid session metadata"}, status=400)
 
         # Get objects
-        worker = get_object_or_404(Worker, pk=worker_id)
-        service = get_object_or_404(WorkerService, pk=service_id, worker=worker)
+        worker = get_object_or_404(
+            Worker,
+            pk=worker_id,
+            is_active=True,
+            verification_status="approved",
+        )
+        service = get_object_or_404(
+            WorkerService,
+            pk=service_id,
+            worker=worker,
+            is_active=True,
+        )
         date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
         time_obj = datetime.strptime(time, "%H:%M").time()
         base_amount = Decimal(amount_str)
+
+        if base_amount != service.price or base_amount < Decimal("100.00"):
+            return Response({"detail": "The payment amount no longer matches the selected service."}, status=400)
+        session_amount = getattr(session, "amount_total", None)
+        if session_amount is not None and int(base_amount * 100) != int(session_amount):
+            return Response({"detail": "The payment amount could not be verified."}, status=400)
 
         existing_by_session = Booking.objects.filter(
             stripe_checkout_session_id=session.id,
@@ -284,7 +322,7 @@ def create_booking_from_payment_session(request, session, metadata):
             worker=worker,
             date=date_obj,
             time_slot=time_obj,
-            status__in=["pending", "accepted", "confirmed", "completed"]
+            status__in=["pending", "accepted", "confirmed", "in_progress"]
         ).first()
 
         if existing_same_slot:
@@ -298,7 +336,7 @@ def create_booking_from_payment_session(request, session, metadata):
             worker=worker,
             date=date_obj,
             time_slot=time_obj,
-            status__in=["pending", "accepted", "confirmed"]
+            status__in=["pending", "accepted", "confirmed", "in_progress"]
         ).exists()
 
         if conflict:
@@ -359,8 +397,9 @@ def create_booking_from_payment_session(request, session, metadata):
             {"error": "This slot is already booked."},
             status=status.HTTP_409_CONFLICT,
         )
-    except Exception as e:
-        return Response({"detail": f"Failed to create booking: {str(e)}"}, status=500)
+    except Exception:
+        logging.getLogger(__name__).exception("Booking creation from Stripe session failed")
+        return Response({"detail": "Unable to confirm this payment right now."}, status=502)
 
 @csrf_exempt
 
@@ -391,29 +430,41 @@ def stripe_webhook(request):
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
+
+        # A signed webhook is authentic, but only a paid Checkout Session may
+        # mark a booking as paid. This prevents an unpaid session event from
+        # changing booking/payment state.
+        if session.get("payment_status") != "paid":
+            return HttpResponse(status=200)
         
         booking_id = session.get("metadata", {}).get("booking_id")
         if booking_id:
             try:
-                booking = Booking.objects.get(id=booking_id)
-                booking.payment_status = "paid"
-                # If pay later was selected but then paid, update payment mode to now
-                booking.payment_mode = "now" 
-                booking.save(update_fields=["payment_status", "payment_mode"])
-                
-                Payment.objects.update_or_create(
-                    booking=booking,
-                    stripe_session_id=session.get("id"),
-                    defaults={
-                        "user": booking.user,
-                        "worker": booking.worker,
-                        "amount": booking.amount,
-                        "currency": session.get("currency", "inr"),
-                        "payment_status": "paid",
-                        "stripe_payment_intent_id": session.get("payment_intent"),
-                        "paid_at": timezone.now()
-                    }
-                )
+                with transaction.atomic():
+                    booking = Booking.objects.get(id=booking_id)
+                    metadata_user_id = session.get("metadata", {}).get("user_id")
+                    if metadata_user_id and str(metadata_user_id) != str(booking.user_id):
+                        return HttpResponse(status=200)
+                    if session.get("amount_total") is not None and int(session["amount_total"]) != int(booking.amount * 100):
+                        return HttpResponse(status=200)
+                    booking.payment_status = "paid"
+                    # If pay later was selected but then paid, update payment mode to now
+                    booking.payment_mode = "now"
+                    booking.save(update_fields=["payment_status", "payment_mode"])
+
+                    Payment.objects.update_or_create(
+                        booking=booking,
+                        stripe_session_id=session.get("id"),
+                        defaults={
+                            "user": booking.user,
+                            "worker": booking.worker,
+                            "amount": booking.amount,
+                            "currency": session.get("currency", "inr"),
+                            "payment_status": "paid",
+                            "stripe_payment_intent_id": session.get("payment_intent"),
+                            "paid_at": timezone.now()
+                        }
+                    )
             except Booking.DoesNotExist:
                 pass
                 

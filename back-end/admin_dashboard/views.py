@@ -1,50 +1,48 @@
-from django.http import JsonResponse
-from functools import wraps
-from django.contrib.auth import get_user_model
-from django.db.models import Sum, Q, Avg
-from django.utils import timezone
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from functools import wraps
+
+from django.contrib.auth import get_user_model
+from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
+from django.db.models import Avg, Count, Q, Sum
+from django.db.models.functions import TruncMonth
+from django.utils import timezone
+from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework import status
-from rest_framework.response import Response
-from django.core.paginator import Paginator
 
-from HomeApp.models import Worker, WorkerService, Booking, WorkerRating, Payment
+from HomeApp.models import Booking, Payment, Profession, UserProfile, Worker, WorkerRating, WorkerService
 from .models import AdminActionLog
 
+
 User = get_user_model()
-
-
+ACTIVE_BOOKING_STATUSES = ["pending", "confirmed", "accepted", "in_progress"]
+BOOKING_STATUS_ALIASES = {"cancelled": "canceled"}
+BOOKING_STATUS_VALUES = ["pending", "confirmed", "accepted", "in_progress", "completed", "canceled", "declined"]
 
 
 def superuser_required(view_func):
-    """
-    Decorator to require superuser access for admin views
-    """
-
+    """Backend authorization guard used by every admin operation."""
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return JsonResponse(
-                {"error": "Authentication required"}, status=401
-            )
+            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
         if not request.user.is_superuser:
-            return JsonResponse(
-                {"error": "Superuser access required"}, status=403
-            )
+            return Response({"error": "Superuser access required"}, status=status.HTTP_403_FORBIDDEN)
         return view_func(request, *args, **kwargs)
-
     return wrapper
 
 
-def log_admin_action(
-    request, action, resource_type, resource_id=None, description=""
-):
-    """Helper function to log admin actions"""
+def get_client_ip(request):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    return forwarded.split(",")[0].strip() if forwarded else request.META.get("REMOTE_ADDR")
+
+
+def log_admin_action(request, action, resource_type, resource_id=None, description=""):
     AdminActionLog.objects.create(
         admin=request.user,
         action=action,
@@ -55,1244 +53,683 @@ def log_admin_action(
     )
 
 
-def get_client_ip(request):
-    """Get client IP address"""
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(",")[0]
-    else:
-        ip = request.META.get("REMOTE_ADDR")
-    return ip
+def _pagination(request, default=20, maximum=100):
+    try:
+        page = max(int(request.GET.get("page", 1)), 1)
+        limit = min(max(int(request.GET.get("limit", request.GET.get("page_size", default))), 1), maximum)
+    except (TypeError, ValueError):
+        page, limit = 1, default
+    return page, limit
 
 
-# ─── AUTHENTICATION ───
+def _paginated(queryset, request, serializer):
+    page, limit = _pagination(request)
+    paginator = Paginator(queryset, limit)
+    page_obj = paginator.get_page(page)
+    return {
+        "items": [serializer(item) for item in page_obj],
+        "pagination": {
+            "page": page_obj.number,
+            "limit": limit,
+            "total": paginator.count,
+            "pages": paginator.num_pages,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+        },
+    }
 
 
+def _profile_for(user):
+    return getattr(user, "profiles", None)
+
+
+def _serialize_user(user, include_bookings=False):
+    profile = _profile_for(user)
+    payload = {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "full_name": f"{user.first_name} {user.last_name}".strip() or user.username,
+        "phone": profile.phone if profile else "",
+        "bio": profile.bio if profile else "",
+        "address": profile.address if profile else "",
+        "city": profile.city if profile else "",
+        "postal_code": profile.postal_code if profile else "",
+        "country": profile.country if profile else "",
+        "date_joined": user.date_joined,
+        "last_login": user.last_login,
+        "is_active": user.is_active,
+        "total_bookings": user.bookings.count(),
+    }
+    if include_bookings:
+        payload["bookings"] = [_serialize_booking(booking) for booking in user.bookings.select_related("worker", "service").all()]
+        payload["total_spent"] = float(user.bookings.filter(payment_status="paid").aggregate(total=Sum("amount"))["total"] or 0)
+    return payload
+
+
+def _serialize_review(review):
+    return {
+        "id": review.id,
+        "rating": review.rating,
+        "review": review.review or "",
+        "moderation_status": review.moderation_status,
+        "customer": {"id": review.user_id, "username": review.user.username, "email": review.user.email},
+        "worker": {"id": review.worker_id, "name": review.worker.name},
+        "created_at": review.created_at,
+    }
+
+
+def _serialize_worker(worker, include_details=False):
+    ratings = worker.ratings.filter(moderation_status="approved")
+    average = ratings.aggregate(value=Avg("rating"))["value"] or 0
+    payload = {
+        "id": worker.id,
+        "name": worker.name,
+        "username": worker.user.username if worker.user else "",
+        "email": worker.email or (worker.user.email if worker.user else ""),
+        "phone": worker.phone,
+        "category": worker.profession.name,
+        "profession": worker.profession.name,
+        "profession_id": worker.profession_id,
+        "location": worker.location,
+        "experience": worker.experience,
+        "bio": worker.bio,
+        "rating": round(float(average), 1),
+        "total_ratings": ratings.count(),
+        "total_bookings": worker.bookings.count(),
+        "booking_count": worker.bookings.count(),
+        "is_active": worker.is_active,
+        "is_available": worker.is_active,
+        "verification_status": worker.verification_status,
+        "date_joined": worker.user.date_joined if worker.user else None,
+    }
+    if include_details:
+        payload["services"] = [_serialize_service(service) for service in worker.services.all()]
+        payload["ratings_list"] = [_serialize_review(review) for review in worker.ratings.select_related("user").all()]
+        payload["bookings"] = [_serialize_booking(booking) for booking in worker.bookings.select_related("user", "service").all()]
+        payload["total_earnings"] = float(worker.bookings.filter(payment_status="paid").aggregate(total=Sum("amount"))["total"] or 0)
+    return payload
+
+
+def _serialize_booking(booking):
+    total = (booking.amount or Decimal("0")) + (booking.pay_later_fee or Decimal("0"))
+    return {
+        "id": booking.id,
+        "user_name": booking.user.username,
+        "worker_name": booking.worker.name,
+        "service_name": booking.service.services,
+        "scheduled_date": booking.date,
+        "scheduled_time": booking.time_slot,
+        "booking_status": booking.status,
+        "payment_status": booking.payment_status,
+        "payment_mode": booking.payment_mode,
+        "amount": float(booking.amount or 0),
+        "pay_later_fee": float(booking.pay_later_fee or 0),
+        "total_amount": float(total),
+        "created_at": booking.created_at,
+    }
+
+
+def _serialize_service(service):
+    return {
+        "id": service.id,
+        "worker_id": service.worker_id,
+        "worker_name": service.worker.name,
+        "service_name": service.services,
+        "description": service.description,
+        "price": float(service.price),
+        "is_active": service.is_active,
+    }
+
+
+def _serialize_payment(payment):
+    booking = payment.booking
+    return {
+        "id": payment.id,
+        "booking_id": booking.id,
+        "user": {"id": payment.user_id, "username": payment.user.username, "email": payment.user.email},
+        "worker": {"id": payment.worker_id, "name": payment.worker.name, "email": payment.worker.email},
+        "service": booking.service.services if booking.service else None,
+        "amount": float(payment.amount),
+        "currency": payment.currency,
+        "payment_status": payment.payment_status,
+        "refund_status": "refunded" if payment.payment_status == "refunded" else "not_requested",
+        "payment_mode": booking.payment_mode,
+        "stripe_session_id": payment.stripe_session_id,
+        "stripe_payment_intent_id": payment.stripe_payment_intent_id,
+        "paid_at": payment.paid_at,
+        "created_at": payment.created_at,
+        "booking_date": booking.date,
+        "booking_time": booking.time_slot,
+    }
+
+
+# Authentication
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([AnonRateThrottle])
 def admin_login(request):
-    """
-    Admin login - only allows superusers
-    Accept username + password
-    """
     username = request.data.get("username")
     password = request.data.get("password")
-
     if not username or not password:
-        return Response(
-            {"error": "Username and password are required"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
+        return Response({"error": "Username and password are required"}, status=status.HTTP_400_BAD_REQUEST)
     try:
         user = User.objects.get(username=username)
     except User.DoesNotExist:
-        return Response(
-            {"error": "Invalid credentials"},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
     if not user.check_password(password):
-        return Response(
-            {"error": "Invalid credentials"},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+    if not user.is_active:
+        return Response({"error": "This admin account is inactive"}, status=status.HTTP_403_FORBIDDEN)
     if not user.is_superuser:
-        return Response(
-            {"error": "You do not have admin access."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
+        return Response({"error": "You do not have admin access."}, status=status.HTTP_403_FORBIDDEN)
     refresh = RefreshToken.for_user(user)
-
-    return Response(
-        {
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": {
-                "id": user.id,  # pyright: ignore
-                "username": user.username,
-                "email": user.email,
-                "is_superuser": user.is_superuser,
-                "is_staff": user.is_staff,
-            },
-        },
-        status=status.HTTP_200_OK,
-    )
+    return Response({"refresh": str(refresh), "access": str(refresh.access_token), "user": {"id": user.id, "username": user.username, "email": user.email, "is_superuser": user.is_superuser, "is_staff": user.is_staff}})
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_logout(request):
-    """
-    Clear admin session/token
-    """
-    log_admin_action(
-        request, "admin_logout", "auth", description="Admin logged out"
-    )
-    return Response(
-        {"message": "Logged out successfully"}, status=status.HTTP_200_OK
-    )
+    log_admin_action(request, "admin_logout", "auth", description="Admin logged out")
+    return Response({"message": "Logged out successfully"})
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_me(request):
-    """
-    Return logged-in admin details
-    """
-    user = request.user
-    return Response(
-        {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "is_superuser": user.is_superuser,
-            "is_staff": user.is_staff,
-            "date_joined": user.date_joined,
-            "last_login": user.last_login,
-        }
-    )
+    return Response(_serialize_user(request.user))
 
 
-# ─── DASHBOARD STATS ───
-
-
+# Dashboard
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_stats(request):
-    """
-    Returns comprehensive dashboard statistics
-    """
     now = timezone.now()
-    current_month_start = now.replace(
-        day=1, hour=0, minute=0, second=0, microsecond=0
-    )
-
-    # User stats
-    total_users = User.objects.filter(is_staff=False).count()
-    new_users_this_month = User.objects.filter(
-        is_staff=False, date_joined__gte=current_month_start
-    ).count()
-
-    # Worker stats
-    total_workers = Worker.objects.count()
-    new_workers_this_month = Worker.objects.filter(
-        user__date_joined__gte=current_month_start
-    ).count()
-
-    # Booking stats
-    total_bookings = Booking.objects.count()
-    pending_bookings = Booking.objects.filter(status="pending").count()
-    confirmed_bookings = Booking.objects.filter(status="confirmed").count()
-    completed_bookings = Booking.objects.filter(status="completed").count()
-    cancelled_bookings = Booking.objects.filter(status="canceled").count()
-
-    # Revenue stats
-    paid_bookings = Booking.objects.filter(payment_status="paid")
-    total_revenue = paid_bookings.aggregate(total=Sum("amount"))[
-        "total"
-    ] or Decimal("0.00")
-
-    revenue_this_month = paid_bookings.filter(
-        created_at__gte=current_month_start
-    ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-
-    return Response(
-        {
-            "total_users": total_users,
-            "total_workers": total_workers,
-            "total_bookings": total_bookings,
-            "pending_bookings": pending_bookings,
-            "confirmed_bookings": confirmed_bookings,
-            "completed_bookings": completed_bookings,
-            "cancelled_bookings": cancelled_bookings,
-            "total_revenue": float(total_revenue),
-            "revenue_this_month": float(revenue_this_month),
-            "new_users_this_month": new_users_this_month,
-            "new_workers_this_month": new_workers_this_month,
-        }
-    )
-
-
-# ─── USER MANAGEMENT ───
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    customers = User.objects.filter(role="user", is_staff=False, is_superuser=False)
+    workers = Worker.objects.select_related("user", "profession")
+    bookings = Booking.objects.select_related("user", "worker", "service")
+    paid = bookings.filter(payment_status="paid")
+    return Response({
+        "total_users": customers.count(),
+        "total_workers": workers.count(),
+        "total_services": WorkerService.objects.count(),
+        "total_bookings": bookings.count(),
+        "pending_bookings": bookings.filter(status="pending").count(),
+        "confirmed_bookings": bookings.filter(status__in=["confirmed", "accepted"]).count(),
+        "in_progress_bookings": bookings.filter(status="in_progress").count(),
+        "completed_bookings": bookings.filter(status="completed").count(),
+        "cancelled_bookings": bookings.filter(status="canceled").count(),
+        "total_revenue": float(paid.aggregate(total=Sum("amount"))["total"] or 0),
+        "revenue_this_month": float(paid.filter(created_at__gte=month_start).aggregate(total=Sum("amount"))["total"] or 0),
+        "new_users_this_month": customers.filter(date_joined__gte=month_start).count(),
+        "new_workers_this_month": workers.filter(user__date_joined__gte=month_start).count(),
+        "recent_bookings": [_serialize_booking(item) for item in bookings.order_by("-created_at")[:5]],
+        "recent_users": [_serialize_user(item) for item in customers.order_by("-date_joined")[:5]],
+        "recent_workers": [_serialize_worker(item) for item in workers.order_by("-user__date_joined")[:5]],
+    })
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 @superuser_required
+def admin_analytics(request):
+    monthly = list(Booking.objects.annotate(month=TruncMonth("created_at")).values("month").annotate(bookings=Count("id"), revenue=Sum("amount")).order_by("month")[-6:])
+    series = [{"month": row["month"].strftime("%Y-%m") if row["month"] else None, "bookings": row["bookings"], "revenue": float(row["revenue"] or 0)} for row in monthly]
+    recent = [row["bookings"] for row in series[-3:]]
+    return Response({"monthly": series, "next_month_booking_forecast": round(sum(recent) / len(recent)) if recent else 0, "forecast_method": "average of the last three months", "top_services": list(WorkerService.objects.values("services").annotate(bookings=Count("bookings")).order_by("-bookings", "services")[:10])})
+
+
+# Users
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@superuser_required
 def admin_users(request):
-    """
-    Return paginated list of all users (non-staff only)
-    """
-    search = request.GET.get("search", "")
-    is_active_filter = request.GET.get("is_active")
-    page = int(request.GET.get("page", 1))
-    limit = int(request.GET.get("limit", 10))
-
-    users = User.objects.filter(is_staff=False)
-
-    # Search
+    users = User.objects.filter(role="user", is_staff=False, is_superuser=False).prefetch_related("profiles")
+    search = request.GET.get("search", "").strip()
+    active = request.GET.get("is_active")
     if search:
-        users = users.filter(
-            Q(username__icontains=search)
-            | Q(email__icontains=search)
-            | Q(first_name__icontains=search)
-            | Q(last_name__icontains=search)
-        )
-
-    # Filter by status
-    if is_active_filter is not None:
-        is_active = is_active_filter.lower() == "true"
-        users = users.filter(is_active=is_active)
-
-    # Pagination
-    paginator = Paginator(users, limit)
-    users_page = paginator.get_page(page)
-
-    users_data = []
-    for user in users_page:
-        booking_count = Booking.objects.filter(user=user).count()
-        users_data.append(
-            {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "full_name": f"{user.first_name}  {user.last_name} ".strip(),
-                "phone": (
-                    getattr(user.profiles, "phone", "")
-                    if hasattr(user, "profiles")
-                    else ""
-                ),
-                "date_joined": user.date_joined,
-                "is_active": user.is_active,
-                "total_bookings": booking_count,
-            }
-        )
-
-    return Response(
-        {
-            "users": users_data,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total": paginator.count,
-                "pages": paginator.num_pages,
-                "has_next": users_page.has_next(),
-                "has_previous": users_page.has_previous(),
-            },
-        }
-    )
+        users = users.filter(Q(username__icontains=search) | Q(email__icontains=search) | Q(first_name__icontains=search) | Q(last_name__icontains=search))
+    if active in {"true", "false"}:
+        users = users.filter(is_active=active == "true")
+    data = _paginated(users.order_by("-date_joined"), request, _serialize_user)
+    return Response({"users": data["items"], "pagination": data["pagination"]})
 
 
-@api_view(["GET", "DELETE"])
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_user_detail(request, user_id):
-    """
-    GET: Full detail of one user
-    DELETE: Permanently delete user and all their bookings
-    """
     try:
-        user = User.objects.get(id=user_id, is_staff=False)
+        user = User.objects.get(id=user_id, role="user", is_staff=False, is_superuser=False)
     except User.DoesNotExist:
-        return Response(
-            {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == "GET":
+        return Response(_serialize_user(user, include_bookings=True))
     if request.method == "DELETE":
-        return admin_delete_user(request, user_id)
-
-    # Profile info
-    profile = getattr(user, "profiles", None)
-
-    # Bookings
-    bookings = Booking.objects.filter(user=user).order_by("-created_at")
-    booking_count = bookings.count()
-    total_spent = bookings.filter(payment_status="paid").aggregate(
-        total=Sum("amount")
-    )["total"] or Decimal("0.00")
-
-    bookings_data = []
-    for booking in bookings:
-        bookings_data.append(
-            {
-                "id": booking.id,  # pyright: ignore
-                "worker_name": booking.worker.name,
-                "service_name": booking.service.services,
-                "date": booking.date,
-                "time": booking.time,
-                "status": booking.status,
-                "payment_status": booking.payment_status,
-                "amount": float(booking.amount),
-                "created_at": booking.created_at,
-            }
-        )
-
-    return Response(
-        {
-            "id": user.id,  # pyright: ignore
-            "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "full_name": f"{user.first_name} {user.last_name}".strip(),
-            "phone": profile.phone if profile else "",
-            "bio": profile.bio if profile else "",
-            "address": profile.address if profile else "",
-            "city": profile.city if profile else "",
-            "country": profile.country if profile else "",
-            "date_joined": user.date_joined,
-            "is_active": user.is_active,
-            "total_bookings": booking_count,
-            "total_spent": float(total_spent),
-            "bookings": bookings_data,
-        }
-    )
+        if user.bookings.exists() or user.payments.exists():
+            user.is_active = False
+            user.save(update_fields=["is_active"])
+            log_admin_action(request, "user_deactivated", "user", user_id, f"User {user.username} retained because they have transaction history")
+            return Response({"message": f'User "{user.username}" was deactivated because they have booking or payment history.'})
+        username = user.username
+        with transaction.atomic():
+            user.delete()
+        log_admin_action(request, "user_deleted", "user", user_id, f"User {username} deleted")
+        return Response({"message": f'User "{username}" deleted successfully'})
+    for field in {"email", "first_name", "last_name"}:
+        if field in request.data:
+            setattr(user, field, request.data[field])
+    with transaction.atomic():
+        user.save()
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        for field in {"phone", "bio", "address", "city", "postal_code", "country"}:
+            if field in request.data:
+                setattr(profile, field, request.data[field])
+        profile.save()
+    log_admin_action(request, "user_updated", "user", user_id, f"User {user.username} updated")
+    return Response(_serialize_user(user, include_bookings=True))
 
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_toggle_user_status(request, user_id):
-    """
-    Toggle user is_active between True and False
-    """
     try:
-        user = User.objects.get(id=user_id, is_staff=False)
+        user = User.objects.get(id=user_id, role="user", is_staff=False, is_superuser=False)
     except User.DoesNotExist:
-        return Response(
-            {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
     user.is_active = not user.is_active
-    user.save()
-
-    action = "user_activated" if user.is_active else "user_deactivated"
-    log_admin_action(
-        request,
-        action,
-        "user",
-        user_id,
-        f'User {user.username} {"activated" if user.is_active else "deactivated"}',  # noqa: E501
-    )
-
-    return Response(
-        {
-            "message": f'User {"activated" if user.is_active else "deactivated"} successfully',  # noqa: E501
-            "is_active": user.is_active,
-        }
-    )
+    user.save(update_fields=["is_active"])
+    log_admin_action(request, "user_status_updated", "user", user_id, f"User active={user.is_active}")
+    return Response({"is_active": user.is_active, "message": "User status updated"})
 
 
-@api_view(["DELETE"])
-@permission_classes([IsAuthenticated])
-@superuser_required
-def admin_delete_user(request, user_id):
-    """
-    Permanently delete user and all their bookings
-    """
-    try:
-        user = User.objects.get(id=user_id, is_staff=False)
-    except User.DoesNotExist:
-        return Response(
-            {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
-    # Delete all their bookings
-    Booking.objects.filter(user=user).delete()
-
-    # Delete user profile if exists
-    if hasattr(user, "profiles"):
-        user.profiles.delete()  # pyright: ignore
-
-    # Delete user
-    username = user.username
-    user.delete()
-
-    log_admin_action(
-        request,
-        "user_deleted",
-        "user",
-        user_id,
-        f"User {username} and all associated data deleted",
-    )
-
-    return Response(
-        {
-            "message": f'User "{username}" and all associated data deleted successfully'  # noqa: E501
-        }
-    )
-
-
-# ─── WORKER MANAGEMENT ───
-
-
+# Workers
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_workers(request):
-    """
-    Return paginated list of all workers
-    """
-    search = request.GET.get("search", "")
+    workers = Worker.objects.select_related("user", "profession").prefetch_related("services", "ratings", "bookings")
+    search = request.GET.get("search", "").strip()
+    verification = request.GET.get("verification_status") or request.GET.get("status")
+    active = request.GET.get("is_active")
     category = request.GET.get("category")
-    is_available = request.GET.get("is_available")
-    page = int(request.GET.get("page", 1))
-    limit = int(request.GET.get("limit", 10))
-
-    workers = Worker.objects.select_related("user", "profession").all()
-
-    # Search
     if search:
-        workers = workers.filter(
-            Q(name__icontains=search)
-            | Q(email__icontains=search)
-            | Q(user__username__icontains=search)
-        )
-
-    # Filter by category
+        workers = workers.filter(Q(name__icontains=search) | Q(email__icontains=search) | Q(user__username__icontains=search))
+    if verification in {"pending", "approved", "rejected"}:
+        workers = workers.filter(verification_status=verification)
+    if active in {"true", "false"}:
+        workers = workers.filter(is_active=active == "true")
     if category:
-        workers = workers.filter(profession__name__icontains=category)
-
-    # Filter by availability
-    if is_available is not None:
-        available = is_available.lower() == "true"
-        workers = workers.filter(is_active=available)
-
-    # Pagination
-    paginator = Paginator(workers, limit)
-    workers_page = paginator.get_page(page)
-
-    workers_data = []
-    for worker in workers_page:
-        booking_count = Booking.objects.filter(worker=worker).count()
-        workers_data.append(
-            {
-                "id": worker.id,
-                "name": worker.name,
-                "email": worker.email,
-                "username": worker.user.username,
-                "category": worker.profession.name,
-                "location": worker.location,
-                "rating": float(worker.rating) if worker.rating else 0.0,
-                "is_available": worker.is_active,
-                "stripe_onboarded": False,  # TODO: Add this field to model
-                "total_bookings": booking_count,
-                "date_joined": worker.user.date_joined,
-                "phone": worker.phone,
-                "experience": worker.experience,
-            }
-        )
-
-    return Response(
-        {
-            "workers": workers_data,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total": paginator.count,
-                "pages": paginator.num_pages,
-                "has_next": workers_page.has_next(),
-                "has_previous": workers_page.has_previous(),
-            },
-        }
-    )
+        workers = workers.filter(profession_id=category)
+    data = _paginated(workers.order_by("-user__date_joined"), request, _serialize_worker)
+    return Response({"workers": data["items"], "pagination": data["pagination"]})
 
 
-@api_view(["GET", "DELETE"])
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_worker_detail(request, worker_id):
-    """
-    GET: Full detail of one worker
-    DELETE: Permanently delete a worker and their profile
-    """
     try:
-        worker = Worker.objects.get(id=worker_id)
+        worker = Worker.objects.select_related("user", "profession").get(id=worker_id)
     except Worker.DoesNotExist:
-        return Response(
-            {"error": "Worker not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
+        return Response({"error": "Worker not found"}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == "GET":
+        return Response(_serialize_worker(worker, include_details=True))
     if request.method == "DELETE":
-        return admin_delete_worker(request, worker_id)
-
-    # Services
-    services = WorkerService.objects.filter(worker=worker)
-    services_data = []
-    for service in services:
-        services_data.append(
-            {
-                "id": service.id,  # pyright: ignore
-                "name": service.services,
-                "description": service.description,
-                "price": float(service.price),
-                "is_active": True,  # TODO: Add this field to model
-            }
-        )
-
-    # Bookings
-    bookings = Booking.objects.filter(worker=worker).order_by("-created_at")
-    booking_count = bookings.count()
-    total_earnings = bookings.filter(payment_status="paid").aggregate(
-        total=Sum("amount")
-    )["total"] or Decimal("0.00")
-
-    bookings_data = []
-    for booking in bookings:
-        bookings_data.append(
-            {
-                "id": booking.id,  # pyright: ignore
-                "user_name": booking.user.username,
-                "service_name": booking.service.services,
-                "date": booking.date,
-                "time": booking.time,
-                "status": booking.status,
-                "payment_status": booking.payment_status,
-                "amount": float(booking.amount),
-                "created_at": booking.created_at,
-            }
-        )
-
-    # Ratings
-    ratings = WorkerRating.objects.filter(worker=worker)
-    avg_rating = float(ratings.aggregate(Avg("rating"))["rating__avg"] or 0.0)
-
-    return Response(
-        {
-            "id": worker.id,  # pyright: ignore
-            "name": worker.name,
-            "email": worker.email,
-            "username": worker.user.username,  # pyright: ignore
-            "phone": worker.phone,
-            "profession": worker.profession.name,
-            "location": worker.location,
-            "bio": worker.bio,
-            "experience": worker.experience,
-            "rating": round(avg_rating, 1),
-            "total_ratings": ratings.count(),
-            "is_available": worker.is_active,
-            "date_joined": worker.user.date_joined,  # pyright: ignore
-            "total_bookings": booking_count,
-            "total_earnings": float(total_earnings),
-            "services": services_data,
-            "bookings": bookings_data,
-        }
-    )
+        name = worker.name
+        if worker.bookings.exists() or worker.payments.exists():
+            worker.is_active = False
+            worker.verification_status = "rejected"
+            worker.save(update_fields=["is_active", "verification_status"])
+            if worker.user_id:
+                worker.user.is_active = False
+                worker.user.save(update_fields=["is_active"])
+            log_admin_action(request, "worker_deactivated", "worker", worker_id, f"Worker {name} retained because they have transaction history")
+            return Response({"message": f'Worker "{name}" was deactivated because they have booking or payment history.'})
+        with transaction.atomic():
+            worker.delete()
+        log_admin_action(request, "worker_deleted", "worker", worker_id, f"Worker {name} deleted")
+        return Response({"message": f'Worker "{name}" deleted successfully'})
+    for field in {"name", "phone", "email", "experience", "location", "bio", "service_radius_km", "is_active", "verification_status"}:
+        if field in request.data:
+            setattr(worker, field, request.data[field])
+    if "profession_id" in request.data:
+        try:
+            worker.profession = Profession.objects.get(id=request.data["profession_id"])
+        except Profession.DoesNotExist:
+            return Response({"error": "Profession not found"}, status=status.HTTP_400_BAD_REQUEST)
+    worker.save()
+    log_admin_action(request, "worker_updated", "worker", worker_id, f"Worker {worker.name} updated")
+    return Response(_serialize_worker(worker, include_details=True))
 
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_toggle_worker_availability(request, worker_id):
-    """
-    Toggle worker is_active between True and False
-    """
     try:
         worker = Worker.objects.get(id=worker_id)
     except Worker.DoesNotExist:
-        return Response(
-            {"error": "Worker not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
+        return Response({"error": "Worker not found"}, status=status.HTTP_404_NOT_FOUND)
     worker.is_active = not worker.is_active
-    worker.save()
-
-    action = "worker_activated" if worker.is_active else "worker_deactivated"
-    log_admin_action(
-        request,
-        action,
-        "worker",
-        worker_id,
-        f'Worker {worker.name} {"activated" if worker.is_active else "deactivated"}',  # noqa: E501
-    )
-
-    return Response(
-        {
-            "message": f'Worker {"activated" if worker.is_active else "deactivated"} successfully',  # noqa: E501
-            "is_active": worker.is_active,
-        }
-    )
+    worker.save(update_fields=["is_active"])
+    log_admin_action(request, "worker_status_updated", "worker", worker_id, f"Worker active={worker.is_active}")
+    return Response({"is_active": worker.is_active, "message": "Worker status updated"})
 
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_verify_worker(request, worker_id):
-    """
-    Set worker as verified (add is_verified=True field)
-    """
     try:
         worker = Worker.objects.get(id=worker_id)
     except Worker.DoesNotExist:
-        return Response(
-            {"error": "Worker not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
-    # TODO: Add is_verified field to Worker model
-    # For now, we'll just return success
-    log_admin_action(
-        request,
-        "worker_verified",
-        "worker",
-        worker_id,
-        f"Worker {worker.name} verified",
-    )
-
-    return Response(
-        {"message": "Worker verified successfully", "is_verified": True}
-    )
+        return Response({"error": "Worker not found"}, status=status.HTTP_404_NOT_FOUND)
+    verification_status = request.data.get("verification_status", "approved")
+    if verification_status not in {"pending", "approved", "rejected"}:
+        return Response({"error": "Invalid worker verification status"}, status=status.HTTP_400_BAD_REQUEST)
+    worker.verification_status = verification_status
+    if verification_status == "rejected":
+        worker.is_active = False
+    elif verification_status == "approved" and "is_active" not in request.data:
+        worker.is_active = True
+    worker.save(update_fields=["verification_status", "is_active"])
+    log_admin_action(request, f"worker_{verification_status}", "worker", worker_id, f"Worker verification set to {verification_status}")
+    return Response(_serialize_worker(worker))
 
 
-@api_view(["DELETE"])
-@permission_classes([IsAuthenticated])
-@superuser_required
-def admin_delete_worker(request, worker_id):
-    """
-    Permanently delete a worker and their profile
-    Also cancel all their active bookings
-    """
-    try:
-        worker = Worker.objects.get(id=worker_id)
-    except Worker.DoesNotExist:
-        return Response(
-            {"error": "Worker not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
-    # Cancel all active bookings
-    Booking.objects.filter(
-        worker=worker, status__in=["pending", "confirmed", "accepted"]
-    ).update(status="canceled")
-
-    # Delete services
-    WorkerService.objects.filter(worker=worker).delete()
-
-    # Delete ratings
-    WorkerRating.objects.filter(worker=worker).delete()
-
-    # Get username for response
-    username = worker.user.username  # pyright: ignore
-
-    # Delete worker (this will also delete the user if needed)
-    worker.delete()
-
-    log_admin_action(
-        request,
-        "worker_deleted",
-        "worker",
-        worker_id,
-        f"Worker {username} and all associated data deleted",
-    )
-
-    return Response(
-        {
-            "message": f'Worker "{username}" and all associated data deleted successfully'  # noqa: E501
-        }
-    )
-
-
-# ─── BOOKING MANAGEMENT ───
-
-
+# Bookings
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_bookings(request):
-    """
-    Return paginated list of ALL bookings
-    """
-    booking_status = request.GET.get("booking_status")
+    bookings = Booking.objects.select_related("user", "worker", "service").all()
+    booking_status = request.GET.get("booking_status") or request.GET.get("status")
     payment_status = request.GET.get("payment_status")
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
-    search = request.GET.get("search")
-    page = int(request.GET.get("page", 1))
-    limit = int(request.GET.get("limit", 10))
-
-    bookings = Booking.objects.select_related(
-        "user", "worker", "service"
-    ).all()
-
-    # Filter by booking status
+    search = request.GET.get("search", "").strip()
     if booking_status:
-        bookings = bookings.filter(status=booking_status)
-
-    # Filter by payment status
+        bookings = bookings.filter(status=BOOKING_STATUS_ALIASES.get(booking_status, booking_status))
     if payment_status:
         bookings = bookings.filter(payment_status=payment_status)
-
-    # Filter by date range
-    if date_from:
-        try:
-            date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
-            bookings = bookings.filter(date__gte=date_from_obj)
-        except ValueError:
-            pass
-
-    if date_to:
-        try:
-            date_to_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
-            bookings = bookings.filter(date__lte=date_to_obj)
-        except ValueError:
-            pass
-
-    # Search by user name or worker name
     if search:
-        bookings = bookings.filter(
-            Q(user__username__icontains=search)
-            | Q(worker__name__icontains=search)
-        )
-
-    # Order by created_at desc
-    bookings = bookings.order_by("-created_at")
-
-    # Pagination
-    paginator = Paginator(bookings, limit)
-    bookings_page = paginator.get_page(page)
-
-    bookings_data = []
-    for booking in bookings_page:
-        bookings_data.append(
-            {
-                "id": booking.id,
-                "user_name": booking.user.username,
-                "worker_name": booking.worker.name,
-                "service_name": booking.service.services,
-                "scheduled_date": booking.date,
-                "scheduled_time": booking.time,
-                "booking_status": booking.status,
-                "payment_status": booking.payment_status,
-                "total_amount": float(booking.amount + booking.pay_later_fee),
-                "created_at": booking.created_at,
-            }
-        )
-
-    return Response(
-        {
-            "bookings": bookings_data,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total": paginator.count,
-                "pages": paginator.num_pages,
-                "has_next": bookings_page.has_next(),
-                "has_previous": bookings_page.has_previous(),
-            },
-        }
-    )
+        bookings = bookings.filter(Q(user__username__icontains=search) | Q(user__email__icontains=search) | Q(worker__name__icontains=search) | Q(worker__email__icontains=search) | Q(service__services__icontains=search) | Q(id__icontains=search))
+    for param, lookup in (("date_from", "date__gte"), ("date_to", "date__lte")):
+        value = request.GET.get(param)
+        if value:
+            try:
+                bookings = bookings.filter(**{lookup: datetime.strptime(value, "%Y-%m-%d").date()})
+            except ValueError:
+                return Response({"error": f"Invalid {param}. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+    data = _paginated(bookings.order_by("-created_at"), request, _serialize_booking)
+    return Response({"bookings": data["items"], "pagination": data["pagination"]})
 
 
-@api_view(["GET", "DELETE"])
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_booking_detail(request, booking_id):
-    """
-    GET: Full detail of one booking
-    DELETE: Permanently delete a booking record
-    """
     try:
-        booking = Booking.objects.get(id=booking_id)
+        booking = Booking.objects.select_related("user", "worker", "worker__profession", "service").get(id=booking_id)
     except Booking.DoesNotExist:
-        return Response(
-            {"error": "Booking not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
+        return Response({"error": "Booking not found"}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == "GET":
+        payload = _serialize_booking(booking)
+        payload.update({"user": _serialize_user(booking.user), "worker": _serialize_worker(booking.worker), "service": {"id": booking.service_id, "name": booking.service.services, "description": booking.service.description, "price": float(booking.service.price), "is_active": booking.service.is_active}, "notes": booking.notes})
+        return Response(payload)
     if request.method == "DELETE":
-        return admin_delete_booking(request, booking_id)
-
-    return Response(
-        {
-            "id": booking.id,  # pyright: ignore
-            "user": {
-                "id": booking.user.id,
-                "username": booking.user.username,
-                "email": booking.user.email,
-                "phone": (
-                    getattr(booking.user.profiles, "phone", "")
-                    if hasattr(booking.user, "profiles")
-                    else ""
-                ),
-            },
-            "worker": {
-                "id": booking.worker.id,  # pyright: ignore
-                "name": booking.worker.name,
-                "email": booking.worker.email,
-                "phone": booking.worker.phone,
-                "profession": booking.worker.profession.name,
-            },
-            "service": {
-                "id": booking.service.id,  # pyright: ignore
-                "name": booking.service.services,
-                "description": booking.service.description,
-                "price": float(booking.service.price),
-            },
-            "scheduled_date": booking.date,
-            "scheduled_time": booking.time,
-            "booking_status": booking.status,
-            "payment_status": booking.payment_status,
-            "payment_mode": booking.payment_mode,
-            "amount": float(booking.amount),
-            "pay_later_fee": float(booking.pay_later_fee),
-            "total_amount": float(booking.amount + booking.pay_later_fee),
-            "notes": booking.notes,
-            "created_at": booking.created_at,
-            # pyright: ignore
-            "updated_at": (
-                booking.updated_at
-                if hasattr(booking, "updated_at")
-                else booking.created_at
-            ),
-        }
-    )
+        booking.delete()
+        log_admin_action(request, "booking_deleted", "booking", booking_id, f"Booking {booking_id} deleted")
+        return Response({"message": "Booking deleted successfully"})
+    new_status = request.data.get("status") or request.data.get("booking_status")
+    new_status = BOOKING_STATUS_ALIASES.get(new_status, new_status)
+    if new_status not in BOOKING_STATUS_VALUES:
+        return Response({"error": "Invalid booking status"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        with transaction.atomic():
+            booking.status = new_status
+            booking.save(update_fields=["status"])
+    except IntegrityError:
+        return Response({"error": "This slot is already booked."}, status=status.HTTP_409_CONFLICT)
+    log_admin_action(request, "booking_status_updated", "booking", booking_id, f"Booking status set to {new_status}")
+    return Response(_serialize_booking(booking))
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_create_booking(request):
-    """
-    Admin can manually create a booking
-    """
-    user_id = request.data.get("user_id")
-    worker_id = request.data.get("worker_id")
-    service_id = request.data.get("service_id")
-    scheduled_date = request.data.get("scheduled_date")
-    scheduled_time = request.data.get("scheduled_time")
-
-    if not all([user_id, worker_id, service_id, scheduled_date]):
-        return Response(
-            {
-                "error": "user_id, worker_id, service_id, and scheduled_date are required"  # noqa: E501
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
     try:
-        user = User.objects.get(id=user_id, is_staff=False)
-        worker = Worker.objects.get(id=worker_id)
-        service = WorkerService.objects.get(id=service_id, worker=worker)
-
-        date_obj = datetime.strptime(scheduled_date, "%Y-%m-%d").date()
-
-        # Check for conflicts
-        conflict = Booking.objects.filter(
-            worker=worker,
-            date=date_obj,
-            status__in=["pending", "confirmed", "accepted"],
-        ).exists()
-
-        if conflict:
-            return Response(
-                {
-                    "error": f"{worker.name} is already booked on {scheduled_date}"  # noqa: E501
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        booking = Booking.objects.create(
-            user=user,
-            worker=worker,
-            service=service,
-            date=date_obj,
-            time=scheduled_time or "09:00",
-            status="confirmed",
-            amount=service.price,
-            payment_status="unpaid",
-        )
-
-        log_admin_action(
-            request,
-            "booking_created",
-            "booking",
-            booking.id,
-            f"Booking created for {user.username} with {worker.name}",
-        )  # pyright: ignore
-
-        return Response(
-            {
-                "message": "Booking created successfully",
-                "booking_id": booking.id,  # pyright: ignore
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-    except (
-        User.DoesNotExist,
-        Worker.DoesNotExist,
-        WorkerService.DoesNotExist,
-    ):
-        return Response(
-            {"error": "Invalid user, worker, or service ID"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    except ValueError:
-        return Response(
-            {"error": "Invalid date format. Use YYYY-MM-DD"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        user = User.objects.get(id=request.data.get("user_id"), role="user", is_staff=False)
+        worker = Worker.objects.get(id=request.data.get("worker_id"))
+        service = WorkerService.objects.get(id=request.data.get("service_id"), worker=worker, is_active=True)
+        booking_date = datetime.strptime(request.data.get("scheduled_date") or request.data.get("date"), "%Y-%m-%d").date()
+        from datetime import time as time_type
+        time_slot = time_type.fromisoformat(request.data.get("scheduled_time") or request.data.get("time") or "09:00")
+    except (User.DoesNotExist, Worker.DoesNotExist, WorkerService.DoesNotExist):
+        return Response({"error": "Invalid user, worker, or service ID"}, status=status.HTTP_400_BAD_REQUEST)
+    except (TypeError, ValueError):
+        return Response({"error": "Invalid date or time format"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        with transaction.atomic():
+            if Booking.objects.filter(worker=worker, date=booking_date, time_slot=time_slot, status__in=ACTIVE_BOOKING_STATUSES).exists():
+                return Response({"error": "This slot is already booked."}, status=status.HTTP_409_CONFLICT)
+            booking = Booking.objects.create(user=user, worker=worker, service=service, date=booking_date, time_slot=time_slot, status="confirmed", amount=service.price, payment_status="unpaid", notes=request.data.get("notes", ""))
+    except IntegrityError:
+        return Response({"error": "This slot is already booked."}, status=status.HTTP_409_CONFLICT)
+    log_admin_action(request, "booking_created", "booking", booking.id, f"Booking created for {user.username} with {worker.name}")
+    return Response({"message": "Booking created successfully", "booking": _serialize_booking(booking)}, status=status.HTTP_201_CREATED)
 
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_cancel_booking(request, booking_id):
-    """
-    Admin cancels a booking
-    """
     try:
         booking = Booking.objects.get(id=booking_id)
     except Booking.DoesNotExist:
-        return Response(
-            {"error": "Booking not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
+        return Response({"error": "Booking not found"}, status=status.HTTP_404_NOT_FOUND)
+    if booking.status in {"completed", "canceled"}:
+        return Response({"error": "This booking cannot be canceled"}, status=status.HTTP_400_BAD_REQUEST)
     reason = request.data.get("reason", "Cancelled by admin")
-
     booking.status = "canceled"
-    if booking.payment_status == "paid":
-        booking.payment_status = "refunded"
-
-    booking.notes = f"{booking.notes or ''}\n\nCancellation reason: {reason}"
-    booking.save()
-
-    log_admin_action(
-        request,
-        "booking_cancelled",
-        "booking",
-        booking_id,
-        f"Booking {booking_id} cancelled: {reason}",
-    )
-
-    return Response(
-        {
-            "message": "Booking cancelled successfully",
-            "booking_status": booking.status,
-            "payment_status": booking.payment_status,
-        }
-    )
+    booking.notes = f"{booking.notes or ''}\n\nCancellation reason: {reason}".strip()
+    booking.save(update_fields=["status", "notes"])
+    log_admin_action(request, "booking_cancelled", "booking", booking_id, f"Booking cancelled: {reason}")
+    return Response({"message": "Booking cancelled successfully", "booking_status": booking.status, "refund_status": "manual_review_required" if booking.payment_status == "paid" else "not_applicable"})
 
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_update_booking_status(request, booking_id):
-    """
-    Admin updates booking to any status
-    """
     try:
         booking = Booking.objects.get(id=booking_id)
     except Booking.DoesNotExist:
-        return Response(
-            {"error": "Booking not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
-    new_status = request.data.get("booking_status")
-
-    valid_statuses = [
-        "pending",
-        "confirmed",
-        "accepted",
-        "in_progress",
-        "completed",
-        "canceled",
-    ]
-    if new_status not in valid_statuses:
-        return Response(
-            {
-                "error": f"Invalid status. Must be one of: {', '.join(valid_statuses)}"  # noqa: E501
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    booking.status = new_status
-    booking.save()
-
-    log_admin_action(
-        request,
-        "booking_status_updated",
-        "booking",
-        booking_id,
-        f"Booking {booking_id} status updated to {new_status}",
-    )
-
-    return Response(
-        {
-            "message": f"Booking status updated to {new_status}",
-            "booking_status": booking.status,
-        }
-    )
+        return Response({"error": "Booking not found"}, status=status.HTTP_404_NOT_FOUND)
+    new_status = request.data.get("status") or request.data.get("booking_status")
+    new_status = BOOKING_STATUS_ALIASES.get(new_status, new_status)
+    if new_status not in BOOKING_STATUS_VALUES:
+        return Response({"error": "Invalid booking status"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        with transaction.atomic():
+            booking.status = new_status
+            booking.save(update_fields=["status"])
+    except IntegrityError:
+        return Response({"error": "This slot is already booked."}, status=status.HTTP_409_CONFLICT)
+    log_admin_action(request, "booking_status_updated", "booking", booking_id, f"Booking status set to {new_status}")
+    return Response(_serialize_booking(booking))
 
 
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_delete_booking(request, booking_id):
-    """
-    Permanently delete a booking record
-    """
     try:
         booking = Booking.objects.get(id=booking_id)
     except Booking.DoesNotExist:
-        return Response(
-            {"error": "Booking not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
-    booking_id_str = str(booking.id)  # pyright: ignore
-    booking.delete()
-
-    log_admin_action(
-        request,
-        "booking_deleted",
-        "booking",
-        booking_id,
-        f"Booking {booking_id_str} deleted",
-    )
-
-    return Response(
-        {"message": f"Booking {booking_id_str} deleted successfully"}
-    )
+        return Response({"error": "Booking not found"}, status=status.HTTP_404_NOT_FOUND)
+    # Keep booking/payment history intact. DELETE is treated as an admin
+    # cancellation because hard-deleting a booking would cascade its payments.
+    booking.status = "canceled"
+    booking.notes = f"{booking.notes or ''}\n\nCancelled by administrator".strip()
+    booking.save(update_fields=["status", "notes"])
+    log_admin_action(request, "booking_cancelled", "booking", booking_id, f"Booking {booking_id} cancelled via delete endpoint")
+    return Response({"message": "Booking cancelled and retained for audit history", "booking_status": booking.status})
 
 
-# ─── SERVICE MANAGEMENT ───
-
-
-@api_view(["GET"])
+# Services
+@api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_services(request):
-    """
-    List all services across all workers
-    """
-    services = WorkerService.objects.all()
+    if request.method == "POST":
+        try:
+            worker = Worker.objects.get(id=request.data.get("worker_id"))
+            price = Decimal(str(request.data.get("price")))
+            if price < Decimal("100.00"):
+                raise InvalidOperation
+            service = WorkerService.objects.create(worker=worker, services=request.data.get("services") or request.data.get("name"), description=request.data.get("description", ""), price=price)
+        except Worker.DoesNotExist:
+            return Response({"error": "Worker not found"}, status=status.HTTP_400_BAD_REQUEST)
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({"error": "Price must be at least ₹100."}, status=status.HTTP_400_BAD_REQUEST)
+        log_admin_action(request, "service_created", "service", service.id, f"Service {service.services} created")
+        return Response(_serialize_service(service), status=status.HTTP_201_CREATED)
+    services = WorkerService.objects.select_related("worker").all()
+    search = request.GET.get("search", "").strip()
+    active = request.GET.get("is_active")
+    if search:
+        services = services.filter(Q(services__icontains=search) | Q(worker__name__icontains=search))
+    if active in {"true", "false"}:
+        services = services.filter(is_active=active == "true")
+    return Response({"services": [_serialize_service(service) for service in services.order_by("services", "id")]})
 
-    services_data = []
-    for service in services:
-        services_data.append(
-            {
-                "id": service.id,  # pyright: ignore
-                "worker_name": service.worker.name,
-                "worker_id": service.worker.id,  # pyright: ignore
-                "service_name": service.services,
-                "description": service.description,
-                "price": float(service.price),
-                "is_active": True,  # TODO: Add this field to model
-            }
-        )
 
-    return Response({"services": services_data})
+@api_view(["GET", "PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+@superuser_required
+def admin_service_detail(request, service_id):
+    try:
+        service = WorkerService.objects.select_related("worker").get(id=service_id)
+    except WorkerService.DoesNotExist:
+        return Response({"error": "Service not found"}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == "GET":
+        return Response(_serialize_service(service))
+    if request.method == "DELETE":
+        name = service.services
+        if service.bookings.exists():
+            service.is_active = False
+            service.save(update_fields=["is_active"])
+            log_admin_action(request, "service_deactivated", "service", service_id, f"Service {name} retained because it has booking history")
+            return Response({"message": f'Service "{name}" was deactivated because it has booking history.'})
+        service.delete()
+        log_admin_action(request, "service_deleted", "service", service_id, f"Service {name} deleted")
+        return Response({"message": f'Service "{name}" deleted successfully'})
+    for field in ["services", "description", "is_active"]:
+        if field in request.data:
+            setattr(service, field, request.data[field])
+    if "name" in request.data:
+        service.services = request.data["name"]
+    if "price" in request.data:
+        try:
+            service.price = Decimal(str(request.data["price"]))
+            if service.price < Decimal("100.00"):
+                raise InvalidOperation
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({"error": "Price must be at least ₹100."}, status=status.HTTP_400_BAD_REQUEST)
+    service.save()
+    log_admin_action(request, "service_updated", "service", service_id, f"Service {service.services} updated")
+    return Response(_serialize_service(service))
 
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_toggle_service(request, service_id):
-    """
-    Toggle service is_active status
-    """
     try:
-        WorkerService.objects.get(id=service_id)
+        service = WorkerService.objects.get(id=service_id)
     except WorkerService.DoesNotExist:
-        return Response(
-            {"error": "Service not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
-    # TODO: Add is_active field to WorkerService model
-    # For now, just return success
-    log_admin_action(
-        request,
-        "service_toggled",
-        "service",
-        service_id,
-        f"Service {service_id} status toggled",
-    )
-
-    return Response(
-        {"message": "Service status toggled successfully", "is_active": True}
-    )
+        return Response({"error": "Service not found"}, status=status.HTTP_404_NOT_FOUND)
+    service.is_active = not service.is_active
+    service.save(update_fields=["is_active"])
+    log_admin_action(request, "service_status_updated", "service", service_id, f"Service active={service.is_active}")
+    return Response({"is_active": service.is_active, "message": "Service status updated"})
 
 
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_delete_service(request, service_id):
-    """
-    Delete a service
-    """
+    return admin_service_detail(request, service_id)
+
+
+# Reviews
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@superuser_required
+def admin_reviews(request):
+    reviews = WorkerRating.objects.select_related("user", "worker").all()
+    search = request.GET.get("search", "").strip()
+    moderation = request.GET.get("moderation_status")
+    rating = request.GET.get("rating")
+    if search:
+        reviews = reviews.filter(Q(review__icontains=search) | Q(user__username__icontains=search) | Q(worker__name__icontains=search))
+    if moderation:
+        reviews = reviews.filter(moderation_status=moderation)
+    if rating in {"1", "2", "3", "4", "5"}:
+        reviews = reviews.filter(rating=int(rating))
+    data = _paginated(reviews.order_by("-created_at"), request, _serialize_review)
+    return Response({"reviews": data["items"], "pagination": data["pagination"]})
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+@superuser_required
+def admin_delete_review(request, review_id):
     try:
-        service = WorkerService.objects.get(id=service_id)
-    except WorkerService.DoesNotExist:
-        return Response(
-            {"error": "Service not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
-    service_name = service.services
-    service.delete()
-
-    log_admin_action(
-        request,
-        "service_deleted",
-        "service",
-        service_id,
-        f"Service {service_name} deleted",
-    )
-
-    return Response(
-        {"message": f'Service "{service_name}" deleted successfully'}
-    )
+        review = WorkerRating.objects.get(id=review_id)
+    except WorkerRating.DoesNotExist:
+        return Response({"error": "Review not found"}, status=status.HTTP_404_NOT_FOUND)
+    review.moderation_status = "removed"
+    review.moderation_reason = "Removed by administrator"
+    review.review = ""
+    review.save(update_fields=["moderation_status", "moderation_reason", "review"])
+    log_admin_action(request, "review_removed", "review", review_id, "Review removed by administrator")
+    return Response({"message": "Review removed successfully"})
 
 
+# Payments
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_payments(request):
-    """
-    Get all payments with filtering and pagination
-    """
-    try:
-        # Get query parameters
-        page = int(request.GET.get('page', 1))
-        page_size = int(request.GET.get('page_size', 10))
-        payment_status = request.GET.get('payment_status', '')
-        payment_mode = request.GET.get('payment_mode', '')
-        search = request.GET.get('search', '')
-        
-        # Build query
-        payments = Payment.objects.select_related('booking', 'user', 'worker').all()
-        
-        # Apply filters
-        if payment_status:
-            payments = payments.filter(payment_status__iexact=payment_status)
-        if payment_mode:
-            payments = payments.filter(booking__payment_mode__iexact=payment_mode)
-        if search:
-            payments = payments.filter(
-                Q(user__username__icontains=search) |
-                Q(worker__name__icontains=search) |
-                Q(booking__id__icontains=search)
-            )
-        
-        # Order by latest
-        payments = payments.order_by('-created_at')
-        
-        # Paginate
-        paginator = Paginator(payments, page_size)
-        payments_page = paginator.get_page(page)
-        
-        # Serialize data
-        payments_data = []
-        for payment in payments_page:
-            payments_data.append({
-                'id': payment.id,
-                'booking_id': payment.booking.id,
-                'user': {
-                    'id': payment.user.id,
-                    'username': payment.user.username,
-                    'email': payment.user.email
-                },
-                'worker': {
-                    'id': payment.worker.id,
-                    'name': payment.worker.name
-                },
-                'amount': float(payment.amount),
-                'currency': payment.currency,
-                'payment_status': payment.payment_status,
-                'payment_mode': payment.booking.payment_mode,
-                'stripe_session_id': payment.stripe_session_id,
-                'stripe_payment_intent_id': payment.stripe_payment_intent_id,
-                'paid_at': payment.paid_at.isoformat() if payment.paid_at else None,
-                'created_at': payment.created_at.isoformat(),
-                'service': payment.booking.service.services if payment.booking.service else None,
-                'booking_date': payment.booking.date.isoformat() if payment.booking.date else None,
-                'booking_time': payment.booking.time.isoformat() if payment.booking.time else None
-            })
-        
-        return Response({
-            'payments': payments_data,
-            'pagination': {
-                'current_page': payments_page.number,
-                'total_pages': paginator.num_pages,
-                'total_items': paginator.count,
-                'has_next': payments_page.has_next(),
-                'has_previous': payments_page.has_previous()
-            },
-            'stats': {
-                'total_payments': paginator.count,
-                'paid_amount': float(payments.filter(payment_status='paid').aggregate(total=Sum('amount'))['total'] or 0),
-                'pending_amount': float(payments.filter(payment_status='pending').aggregate(total=Sum('amount'))['total'] or 0),
-                'failed_amount': float(payments.filter(payment_status='failed').aggregate(total=Sum('amount'))['total'] or 0)
-            }
-        })
-        
-    except Exception as e:
-        return Response(
-            {"error": f"Failed to fetch payments: {str(e)}"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    payments = Payment.objects.select_related("booking", "booking__service", "user", "worker").all()
+    payment_status = request.GET.get("payment_status")
+    payment_mode = request.GET.get("payment_mode")
+    search = request.GET.get("search", "").strip()
+    if payment_status:
+        payments = payments.filter(payment_status=payment_status)
+    if payment_mode:
+        payments = payments.filter(booking__payment_mode=payment_mode)
+    if search:
+        payments = payments.filter(Q(user__username__icontains=search) | Q(worker__name__icontains=search) | Q(booking__id__icontains=search))
+    data = _paginated(payments.order_by("-created_at"), request, _serialize_payment)
+    return Response({"payments": data["items"], "pagination": data["pagination"], "stats": {"total_payments": payments.count(), "paid_amount": float(payments.filter(payment_status="paid").aggregate(total=Sum("amount"))["total"] or 0), "pending_amount": float(payments.filter(payment_status="pending").aggregate(total=Sum("amount"))["total"] or 0), "failed_amount": float(payments.filter(payment_status="failed").aggregate(total=Sum("amount"))["total"] or 0)}})
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 @superuser_required
 def admin_payment_detail(request, payment_id):
-    """
-    Get detailed information about a specific payment
-    """
     try:
-        payment = Payment.objects.select_related('booking', 'user', 'worker', 'booking__service').get(id=payment_id)
-        
-        payment_data = {
-            'id': payment.id,
-            'booking': {
-                'id': payment.booking.id,
-                'service': payment.booking.service.services if payment.booking.service else None,
-                'date': payment.booking.date.isoformat() if payment.booking.date else None,
-                'time': payment.booking.time.isoformat() if payment.booking.time else None,
-                'status': payment.booking.status,
-                'payment_mode': payment.booking.payment_mode,
-                'notes': payment.booking.notes,
-                'stripe_checkout_session_id': payment.booking.stripe_checkout_session_id
-            },
-            'user': {
-                'id': payment.user.id,
-                'username': payment.user.username,
-                'email': payment.user.email,
-                'phone': getattr(payment.user, 'phone', None)
-            },
-            'worker': {
-                'id': payment.worker.id,
-                'name': payment.worker.name,
-                'email': payment.worker.email,
-                'phone': payment.worker.phone
-            },
-            'amount': float(payment.amount),
-            'currency': payment.currency,
-            'payment_status': payment.payment_status,
-            'stripe_session_id': payment.stripe_session_id,
-            'stripe_payment_intent_id': payment.stripe_payment_intent_id,
-            'paid_at': payment.paid_at.isoformat() if payment.paid_at else None,
-            'created_at': payment.created_at.isoformat(),
-            'updated_at': payment.updated_at.isoformat() if hasattr(payment, 'updated_at') else None
-        }
-        
-        return Response(payment_data)
-        
+        payment = Payment.objects.select_related("booking", "booking__service", "user", "worker").get(id=payment_id)
     except Payment.DoesNotExist:
-        return Response(
-            {"error": "Payment not found"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except Exception as e:
-        return Response(
-            {"error": f"Failed to fetch payment details: {str(e)}"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return Response({"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND)
+    return Response(_serialize_payment(payment))

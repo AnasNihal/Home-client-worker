@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from .models import Profession, WorkerService,Worker,UserProfile,WorkerRating,Booking
 from django.db.models import Avg
 from decimal import Decimal
@@ -86,6 +87,10 @@ class UserRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError("Phone number must be exactly 10 digits.")
         return value
 
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
     def create(self,validated_data):
         username = validated_data.pop('username')
         password = validated_data.pop('password')
@@ -111,6 +116,10 @@ class WorkerRegistrationSerializer(serializers.Serializer):
     experience = serializers.CharField(required=False, allow_blank=True)
     location = serializers.CharField(required=False, allow_blank=True)
     bio = serializers.CharField(required=False, allow_blank=True)
+    latitude = serializers.DecimalField(required=False, allow_null=True, max_digits=9, decimal_places=6)
+    longitude = serializers.DecimalField(required=False, allow_null=True, max_digits=9, decimal_places=6)
+    service_radius_km = serializers.IntegerField(required=False, min_value=1, max_value=200)
+    working_hours = serializers.JSONField(required=False)
 
     def validate_username (self,value):
         if User.objects.filter(username = value).exists():
@@ -123,6 +132,10 @@ class WorkerRegistrationSerializer(serializers.Serializer):
         if not value.isdigit() or len(value) != 10:
             raise serializers.ValidationError("Phone number must be exactly 10 digits.")
         return value
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
     
     def create(self , validated_data):
         username = validated_data.pop("username")
@@ -130,7 +143,13 @@ class WorkerRegistrationSerializer(serializers.Serializer):
         email = validated_data.pop("email", "")
         user = User.objects.create_user(username=username, email=email, password=password, role="worker")
         # create Worker profile tied to that account
-        worker = Worker.objects.create(user=user,name=username, email=email, **validated_data)
+        worker = Worker.objects.create(
+            user=user,
+            name=username,
+            email=email,
+            verification_status="pending",
+            **validated_data,
+        )
         return worker
 
 class WorkerServiceSerializer(serializers.ModelSerializer):
@@ -153,11 +172,11 @@ class WorkerRatingSummarySerializer(serializers.ModelSerializer):
         fields = ['average_rating', 'total_ratings']
 
     def get_average_rating(self, obj):
-        avg = WorkerRating.objects.filter(worker=obj).aggregate(Avg('rating'))['rating__avg']
+        avg = WorkerRating.objects.filter(worker=obj, moderation_status="approved").aggregate(Avg('rating'))['rating__avg']
         return round(avg, 1) if avg else 0
 
     def get_total_ratings(self, obj):
-        return WorkerRating.objects.filter(worker=obj).count()
+        return WorkerRating.objects.filter(worker=obj, moderation_status="approved").count()
 
 class WorkerRatingSerializer(serializers.ModelSerializer):
     user__username = serializers.CharField(source="user.username", read_only=True)
@@ -177,7 +196,8 @@ class WorkerSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     services = WorkerServiceSerializer(many=True, read_only=True)
     ratings = WorkerRatingSummarySerializer(source='*', read_only=True)# 🔹 include nested rating summary
-    reviews = WorkerRatingSerializer(source="ratings", many=True, read_only=True)
+    reviews = serializers.SerializerMethodField(read_only=True)
+    availability = serializers.SerializerMethodField(read_only=True)
 
 
     # 🔹 Nested profession serializer (read-only)
@@ -195,6 +215,8 @@ class WorkerSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'image', 'username', 'email', 'name', 'phone',
             'profession', 'profession_id', 'experience', 'location', 'bio',
+            'latitude', 'longitude', 'service_radius_km', 'working_hours', 'availability',
+            'is_active', 'verification_status',
             'services', 'ratings' , 'reviews' # 🔹 include ratings here
         ]
         extra_kwargs = {
@@ -206,6 +228,58 @@ class WorkerSerializer(serializers.ModelSerializer):
             "bio": {"required": False},
             "email": {"required": False},
         }
+        # These fields are controlled by marketplace administrators.  Keeping
+        # them read-only here prevents a worker from self-approving or hiding
+        # their own profile through the worker dashboard endpoint.
+        read_only_fields = [
+            "id",
+            "availability",
+            "is_active",
+            "verification_status",
+            "services",
+            "ratings",
+            "reviews",
+        ]
+
+    def get_availability(self, obj):
+        if not obj.is_active:
+            return "Unavailable"
+        if obj.working_hours:
+            return "Available on request"
+        return "Contact for Availability"
+
+    def get_reviews(self, obj):
+        reviews = obj.ratings.filter(moderation_status="approved").select_related("user")
+        data = WorkerRatingSerializer(reviews, many=True).data
+        request = self.context.get("request")
+        is_owner = bool(
+            request
+            and getattr(request.user, "is_authenticated", False)
+            and obj.user_id == request.user.id
+        )
+        if not is_owner:
+            for review in data:
+                review.pop("user__username", None)
+        return data
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        is_owner = bool(
+            request
+            and getattr(request.user, "is_authenticated", False)
+            and instance.user_id == request.user.id
+        )
+        if not is_owner:
+            # Worker contact details are private account data. They remain
+            # available in the worker's own dashboard and admin APIs.
+            data.pop("phone", None)
+            data.pop("email", None)
+            data["services"] = WorkerServiceSerializer(
+                instance.services.filter(is_active=True),
+                many=True,
+            ).data
+        return data
 
 
 
@@ -283,5 +357,3 @@ class BookingSerializer(serializers.ModelSerializer):
 #     class Meta:
 #         model = Booking
 #         fields = "__all__"
-
- 

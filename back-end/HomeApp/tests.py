@@ -196,6 +196,49 @@ class HomeAppApiTests(APITestCase):
         self.assertEqual(ok_response.status_code, status.HTTP_200_OK)
         self.assertEqual(ok_response.data["name"], self.worker.name)
 
+    def test_worker_cannot_change_admin_controlled_status_fields(self):
+        self.authenticate(self.worker_user)
+        response = self.client.put(
+            "/worker/dashboard/",
+            {"verification_status": "rejected", "is_active": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.worker.refresh_from_db()
+        self.assertEqual(self.worker.verification_status, "approved")
+        self.assertTrue(self.worker.is_active)
+
+    def test_rejected_worker_cannot_accept_new_bookings(self):
+        self.worker.verification_status = "rejected"
+        self.worker.is_active = False
+        self.worker.save(update_fields=["verification_status", "is_active"])
+        self.authenticate(self.user)
+
+        response = self.client.post(
+            f"/workers/{self.worker.id}/book/",
+            {
+                "service_id": self.service.id,
+                "date": self.booking_date.isoformat(),
+                "time": "11:00",
+                "payment_mode": "later",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(Booking.objects.count(), 0)
+
+    def test_public_worker_response_redacts_contact_and_review_usernames(self):
+        WorkerRating.objects.create(worker=self.worker, user=self.user, rating=5, review="Great")
+
+        response = self.client.get(f"/workers/{self.worker.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("phone", response.data)
+        self.assertNotIn("email", response.data)
+        self.assertNotIn("user__username", response.data["reviews"][0])
+
     def test_worker_can_add_edit_and_delete_service(self):
         self.authenticate(self.worker_user)
 
@@ -217,6 +260,58 @@ class HomeAppApiTests(APITestCase):
 
         delete_response = self.client.delete(f"/worker/service/{service_id}/")
         self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_used_service_is_deactivated_instead_of_cascading_bookings(self):
+        booking = self.create_booking()
+        self.authenticate(self.worker_user)
+
+        response = self.client.delete(f"/worker/service/{self.service.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.service.refresh_from_db()
+        self.assertFalse(self.service.is_active)
+        self.assertTrue(Booking.objects.filter(id=booking.id).exists())
+
+    def test_ai_service_intake_and_recommendations_work_without_provider_key(self):
+        self.authenticate(self.user)
+        intake = self.client.post(
+            "/ai/service-intake/",
+            {"message": "My kitchen tap has a water leak in Bangalore"},
+            format="json",
+        )
+        self.assertEqual(intake.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(intake.data["profession"], "plumber")
+
+        recommendations = self.client.get(f"/ai/recommend-workers/?request_id={intake.data['request_id']}")
+        self.assertEqual(recommendations.status_code, status.HTTP_200_OK)
+        self.assertEqual(recommendations.data["results"][0]["worker_id"], self.worker.id)
+
+    def test_ai_support_chat_is_authenticated(self):
+        self.assertEqual(self.client.post("/ai/support-chat/", {"message": "How do I cancel?"}, format="json").status_code, 401)
+        self.authenticate(self.user)
+        response = self.client.post("/ai/support-chat/", {"message": "How do I cancel?"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("cancel", response.data["answer"].lower())
+
+    def test_ai_support_chat_uses_account_context_and_history(self):
+        self.authenticate(self.user)
+        booking = self.create_booking(status="confirmed", payment_status="paid")
+        response = self.client.post(
+            "/ai/support-chat/",
+            {
+                "message": "What is my latest booking status?",
+                "history": [{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello!"}],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(f"#{booking.id}", response.data["answer"])
+        self.assertIn("confirmed", response.data["answer"].lower())
+
+    def test_review_moderation_blocks_obvious_abuse(self):
+        self.authenticate(self.user)
+        response = self.client.post(f"/workers/{self.worker.id}/rate/", {"rating": 1, "review": "This is spam and abuse"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_create_pay_later_booking(self):
         self.authenticate(self.user)

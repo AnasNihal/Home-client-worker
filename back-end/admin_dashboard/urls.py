@@ -11,6 +11,7 @@ urlpatterns = [
     
     # Dashboard Stats
     path('stats/', views.admin_stats, name='admin_stats'),
+    path('analytics/', views.admin_analytics, name='admin_analytics'),
     
     # User Management
     path('users/', views.admin_users, name='admin_users'),
@@ -33,7 +34,11 @@ urlpatterns = [
     # Service Management
     path('services/', views.admin_services, name='admin_services'),
     path('services/<int:service_id>/toggle/', views.admin_toggle_service, name='admin_toggle_service'),
-    path('services/<int:service_id>/', views.admin_delete_service, name='admin_delete_service'),
+    path('services/<int:service_id>/', views.admin_service_detail, name='admin_service_detail'),
+
+    # Ratings and reviews
+    path('reviews/', views.admin_reviews, name='admin_reviews'),
+    path('reviews/<int:review_id>/', views.admin_delete_review, name='admin_delete_review'),
     
     # Payment Management
     path('payments/', views.admin_payments, name='admin_payments'),

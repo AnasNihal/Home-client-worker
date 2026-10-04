@@ -149,3 +149,27 @@ Contributions, issues, and feature requests are welcome. Feel free to open an is
 ## 📄 License
 
 This project is open source. Add your preferred license (e.g. MIT) here.
+
+Live demo and screenshots should be added here after deploying the Django API and React frontend.
+
+## AI features
+
+The application now includes an optional AI layer. It works with deterministic local fallbacks when no provider key is configured and uses OpenAI when `OPENAI_API_KEY` is set in `back-end/.env`.
+
+Available endpoints:
+
+- `POST /ai/service-intake/` — normalize a natural-language home-service request.
+- `GET /ai/recommend-workers/?request_id=<id>` — rank active workers using profession, service, location, price, and ratings.
+- `POST /ai/support-chat/` — authenticated booking and payment support.
+- `POST /ai/analyze-image/` — classify a home-service photo (JPEG, PNG, or WebP up to 20 MB).
+- `POST /ai/moderate-review/` — review safety check; worker ratings also use this check.
+- `GET /api/superadmin/analytics/` — admin demand history and transparent next-month baseline forecast.
+
+Run migrations after upgrading:
+
+```bash
+cd back-end
+python manage.py migrate
+```
+
+Set `OPENAI_API_KEY`, `OPENAI_AI_MODEL`, and `OPENAI_VISION_MODEL` only on the backend. Never expose the key in the React environment.
