@@ -2,6 +2,9 @@
   "name": "homefront",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "react": "^19.1.1",

@@ -63,7 +63,7 @@ flowchart LR
 
 ### Prerequisites
 - Python 3.10+
-- Node.js 18+
+- Node.js 24 (Vite 8; Node.js 22.12+ is also supported)
 - npm
 
 ### 1. Backend Setup
@@ -85,7 +85,7 @@ The API will be available at `http://localhost:8000`.
 ```bash
 cd front-end/homefront
 cp .env.example .env
-npm install
+npm ci
 npm start
 ```
 
