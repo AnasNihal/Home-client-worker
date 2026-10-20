@@ -184,17 +184,17 @@ const WorkerDashboard = () => {
         />
       )}
       {/* Sidebar */}
-      <aside className="w-72 bg-white/10 backdrop-blur-md border-r border-white/20 shadow-2xl">
-        <div className="p-6">
+      <aside className="w-16 shrink-0 bg-white/10 backdrop-blur-md border-r border-white/20 shadow-2xl md:w-72">
+        <div className="p-2 md:p-6">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg">
               <span className="text-[#0b2e28] font-bold text-lg">W</span>
             </div>
-            <h1 className="text-2xl font-bold text-white">Worker Portal</h1>
+            <h1 className="hidden text-2xl font-bold text-white md:block">Worker Portal</h1>
           </div>
           
           {/* Profile Summary */}
-          <div className="mb-8 p-4 bg-white/5 rounded-2xl border border-white/10">
+          <div className="mb-8 hidden p-4 bg-white/5 rounded-2xl border border-white/10 md:block">
             <div className="flex items-center gap-4 mb-4">
               {workerData?.image ? (
                 <img
@@ -228,72 +228,82 @@ const WorkerDashboard = () => {
           <nav className="space-y-2">
             <button
               onClick={() => setActiveSection('overview')}
-              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 ${
+              title="Overview"
+              aria-label="Overview"
+              className={`w-full flex items-center justify-center gap-0 px-2 py-3.5 rounded-xl transition-all duration-300 md:justify-start md:gap-4 md:px-4 ${
                 activeSection === 'overview' 
                   ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-[#0b2e28] shadow-lg transform scale-105' 
                   : 'text-white/80 hover:bg-white/10 hover:text-white'
               }`}
             >
               <HomeIcon className="h-5 w-5" />
-              <span className="font-medium">Overview</span>
+              <span className="hidden font-medium md:inline">Overview</span>
             </button>
 
             <button
               onClick={() => setActiveSection('profile')}
-              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 ${
+              title="Profile"
+              aria-label="Profile"
+              className={`w-full flex items-center justify-center gap-0 px-2 py-3.5 rounded-xl transition-all duration-300 md:justify-start md:gap-4 md:px-4 ${
                 activeSection === 'profile' 
                   ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-[#0b2e28] shadow-lg transform scale-105' 
                   : 'text-white/80 hover:bg-white/10 hover:text-white'
               }`}
             >
               <UserIcon className="h-5 w-5" />
-              <span className="font-medium">Profile</span>
+              <span className="hidden font-medium md:inline">Profile</span>
             </button>
 
             <button
               onClick={() => setActiveSection('services')}
-              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 ${
+              title="Services"
+              aria-label="Services"
+              className={`w-full flex items-center justify-center gap-0 px-2 py-3.5 rounded-xl transition-all duration-300 md:justify-start md:gap-4 md:px-4 ${
                 activeSection === 'services' 
                   ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-[#0b2e28] shadow-lg transform scale-105' 
                   : 'text-white/80 hover:bg-white/10 hover:text-white'
               }`}
             >
               <BriefcaseIcon className="h-5 w-5" />
-              <span className="font-medium">Services</span>
+              <span className="hidden font-medium md:inline">Services</span>
             </button>
 
             <button
               onClick={() => setActiveSection('bookings')}
-              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 ${
+              title="Bookings"
+              aria-label="Bookings"
+              className={`w-full flex items-center justify-center gap-0 px-2 py-3.5 rounded-xl transition-all duration-300 md:justify-start md:gap-4 md:px-4 ${
                 activeSection === 'bookings' 
                   ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-[#0b2e28] shadow-lg transform scale-105' 
                   : 'text-white/80 hover:bg-white/10 hover:text-white'
               }`}
             >
               <CalendarIcon className="h-5 w-5" />
-              <span className="font-medium">Bookings</span>
+              <span className="hidden font-medium md:inline">Bookings</span>
             </button>
 
           </nav>
 
           {/* Logout */}
-          <div className="mt-8 pt-6 border-t border-white/20">
+          <div className="mt-8 border-t border-white/20 pt-6">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-white/80 hover:bg-red-500/20 hover:text-red-300 transition-all duration-300"
+              title="Logout"
+              aria-label="Logout"
+              className="w-full flex items-center justify-center gap-0 px-2 py-3.5 rounded-xl text-white/80 hover:bg-red-500/20 hover:text-red-300 transition-all duration-300 md:justify-start md:gap-4 md:px-4"
             >
               <ArrowRightOnRectangleIcon className="h-5 w-5" />
-              <span className="font-medium">Logout</span>
+              <span className="hidden font-medium md:inline">Logout</span>
             </button>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         <header className="bg-white/10 backdrop-blur-md border-b border-white/20 shadow-lg">
-          <div className="px-8 py-6">
-            <h2 className="text-3xl font-bold text-white capitalize">
+          <div className="px-4 py-4 md:px-8 md:py-6">
+            <h2 className="text-2xl font-bold text-white capitalize md:text-3xl">
               {activeSection === 'overview' && 'Dashboard Overview'}
               {activeSection === 'profile' && 'Profile Management'}
               {activeSection === 'services' && 'Service Management'}
@@ -309,7 +319,7 @@ const WorkerDashboard = () => {
           </div>
         </header>
 
-        <div className="p-8">
+        <div className="p-4 md:p-8">
           {activeSection === 'overview' && <OverviewSection workerData={workerData} />}
           {activeSection === 'profile' && <ProfileSection workerData={workerData} onEdit={() => setIsProfileModalOpen(true)} setWorkerData={setWorkerData} />}
           {activeSection === 'services' && (
