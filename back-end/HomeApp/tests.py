@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.db import DatabaseError
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -497,3 +498,18 @@ class HomeAppApiTests(APITestCase):
 
         self.assertEqual(payment.payment_status, "paid")
         self.assertEqual(payment.booking.payment_status, "paid")
+
+
+class HealthCheckTests(APITestCase):
+    def test_health_check_reports_database_readiness(self):
+        response = self.client.get("/health/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"status": "ok"})
+
+    @patch("HomeService.urls.connection.cursor", side_effect=DatabaseError)
+    def test_health_check_returns_unavailable_when_database_fails(self, _cursor):
+        response = self.client.get("/health/")
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data, {"status": "unavailable"})

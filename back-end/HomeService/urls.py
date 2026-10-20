@@ -19,10 +19,23 @@ from django.contrib import admin
 from django.urls import path,include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.db import DatabaseError, connection
+from django.http import JsonResponse
+
+
+def health_check(request):
+    """Return readiness only when the configured database can serve requests."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+    except DatabaseError:
+        return JsonResponse({"status": "unavailable"}, status=503)
+    return JsonResponse({"status": "ok"})
 
 
 
 urlpatterns = [
+    path("health/", health_check, name="health_check"),
     path("admin/", admin.site.urls),
     path('api/superadmin/', include('admin_dashboard.urls')),
     path('',include('HomeApp.urls')),
