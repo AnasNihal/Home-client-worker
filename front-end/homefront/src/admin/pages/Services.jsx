@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { adminFetch, readAdminError } from '../adminUtils';
 import { API_ENDPOINTS } from '../../constants/api';
@@ -7,8 +7,8 @@ const empty = { worker_id: '', name: '', description: '', price: '100' };
 
 const Services = () => {
   const [services, setServices] = useState([]); const [workers, setWorkers] = useState([]); const [search, setSearch] = useState(''); const [active, setActive] = useState(''); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [form, setForm] = useState(empty); const [editing, setEditing] = useState(null);
-  const load = async () => { setLoading(true); try { const params = new URLSearchParams(); if (search) params.set('search', search); if (active) params.set('is_active', active); const [servicesResponse, workersResponse] = await Promise.all([adminFetch(`${API_ENDPOINTS.ADMIN_SERVICES}?${params}`), adminFetch(`${API_ENDPOINTS.ADMIN_WORKERS}?limit=100`)]); if (!servicesResponse.ok) throw new Error(await readAdminError(servicesResponse, 'Unable to load services')); const data = await servicesResponse.json(); setServices(data.services || []); if (workersResponse.ok) setWorkers((await workersResponse.json()).workers || []); } catch (err) { setError(err.message); } finally { setLoading(false); } };
-  useEffect(() => { load(); }, [search, active]);
+  const load = useCallback(async () => { setLoading(true); try { const params = new URLSearchParams(); if (search) params.set('search', search); if (active) params.set('is_active', active); const [servicesResponse, workersResponse] = await Promise.all([adminFetch(`${API_ENDPOINTS.ADMIN_SERVICES}?${params}`), adminFetch(`${API_ENDPOINTS.ADMIN_WORKERS}?limit=100`)]); if (!servicesResponse.ok) throw new Error(await readAdminError(servicesResponse, 'Unable to load services')); const data = await servicesResponse.json(); setServices(data.services || []); if (workersResponse.ok) setWorkers((await workersResponse.json()).workers || []); } catch (err) { setError(err.message); } finally { setLoading(false); } }, [search, active]);
+  useEffect(() => { load(); }, [load]);
   const save = async (event) => { event.preventDefault(); const url = editing ? API_ENDPOINTS.ADMIN_SERVICE(editing.id) : API_ENDPOINTS.ADMIN_SERVICES; const method = editing ? 'PATCH' : 'POST'; const response = await adminFetch(url, { method, body: JSON.stringify(form) }); if (!response.ok) { setError(await readAdminError(response)); return; } setForm(empty); setEditing(null); load(); };
   const remove = async (service) => { if (!window.confirm(`Delete ${service.service_name}?`)) return; const response = await adminFetch(API_ENDPOINTS.ADMIN_SERVICE(service.id), { method: 'DELETE' }); if (!response.ok) setError(await readAdminError(response)); else load(); };
   const toggle = async (service) => { const response = await adminFetch(`${API_ENDPOINTS.ADMIN_SERVICE(service.id)}toggle/`, { method: 'PATCH' }); if (!response.ok) setError(await readAdminError(response)); else load(); };
