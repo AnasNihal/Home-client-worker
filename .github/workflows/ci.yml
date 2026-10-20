@@ -56,7 +56,7 @@ jobs:
       run:
         working-directory: front-end/homefront
     env:
-      REACT_APP_API_URL: http://127.0.0.1:8000
+      VITE_API_URL: http://127.0.0.1:8000
       CI: "true"
     steps:
       - name: Checkout

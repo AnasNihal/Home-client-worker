@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.js";
 
 /* Custom background colors for the application */
 .bg-green {
@@ -233,4 +232,4 @@
   .fade-in-overlap-2.animate {
     transform: none !important;
   }
-}   
+}
