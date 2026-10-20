@@ -98,7 +98,7 @@ export default function BookingPage() {
         title: 'Booking Confirmed',
         message: 'Your booking is confirmed and payment is pending.',
       });
-      navigate("/user/bookings");
+      navigate("/booking/details");
     } catch (err) {
       console.error(err);
       setToast({
