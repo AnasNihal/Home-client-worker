@@ -36,7 +36,7 @@ A full-stack home services marketplace connecting customers with skilled workers
 | Layer      | Technology |
 |------------|------------|
 | Backend    | Django, Django REST Framework, Simple JWT |
-| Database   | SQLite (local dev), PostgreSQL-ready via `DATABASE_URL` |
+| Database   | SQLite (local dev), PostgreSQL (production `DATABASE_URL`) |
 | Frontend   | React, React Router, Tailwind CSS, Heroicons |
 | Payments   | Stripe Checkout + webhook handling |
 | Quality    | Django API test suite, CRA test runner, GitHub Actions CI |
@@ -119,7 +119,6 @@ CI runs these checks automatically on every push via **GitHub Actions**.
 | Resource | Link |
 |---|---|
 | Deployment Guide | [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) |
-| Security Checklist | [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) |
 | Backend env template | [back-end/.env.example](back-end/.env.example) |
 | Frontend env template | [front-end/homefront/.env.example](front-end/homefront/.env.example) |
 
