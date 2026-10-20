@@ -505,11 +505,11 @@ class HealthCheckTests(APITestCase):
         response = self.client.get("/health/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"status": "ok"})
+        self.assertEqual(response.json(), {"status": "ok"})
 
     @patch("HomeService.urls.connection.cursor", side_effect=DatabaseError)
     def test_health_check_returns_unavailable_when_database_fails(self, _cursor):
         response = self.client.get("/health/")
 
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-        self.assertEqual(response.data, {"status": "unavailable"})
+        self.assertEqual(response.json(), {"status": "unavailable"})
