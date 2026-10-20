@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 import os
 from pathlib import Path
 from datetime import timedelta
+from urllib.parse import urlsplit
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -56,6 +57,8 @@ ALLOWED_HOSTS = [
     for host in os.getenv("ALLOWED_HOSTS", "").split(",")
     if host.strip()
 ]
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured("ALLOWED_HOSTS must list the production API hostnames.")
 
 
 # Application definition
@@ -78,7 +81,6 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -87,12 +89,27 @@ MIDDLEWARE = [
     "HomeApp.middleware.SecurityHeadersMiddleware",
     "HomeApp.middleware.RequestLoggingMiddleware",
 ]
+if not DEBUG:
+    MIDDLEWARE.insert(
+        MIDDLEWARE.index("django.middleware.security.SecurityMiddleware") + 1,
+        "whitenoise.middleware.WhiteNoiseMiddleware",
+    )
 
 # CORS Configuration. Local development origins must not remain enabled in
 # production, where only the configured frontend should be trusted.
 frontend_url = os.getenv("FRONTEND_BASE_URL")
 if not DEBUG and not frontend_url:
     raise ImproperlyConfigured("FRONTEND_BASE_URL must be set in production.")
+if not DEBUG:
+    frontend_origin = urlsplit(frontend_url)
+    if (
+        frontend_origin.scheme != "https"
+        or not frontend_origin.hostname
+        or frontend_origin.path not in ("", "/")
+        or frontend_origin.query
+        or frontend_origin.fragment
+    ):
+        raise ImproperlyConfigured("FRONTEND_BASE_URL must be an HTTPS origin without a path.")
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -263,6 +280,25 @@ AUTH_USER_MODEL = 'HomeApp.CustomerUser'
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
+
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend" if not DEBUG else "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in {"true", "1", "yes"}
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@homeservice.com")
+
+if not DEBUG:
+    if not STRIPE_SECRET_KEY.startswith(("sk_test_", "sk_live_")):
+        raise ImproperlyConfigured("Set STRIPE_SECRET_KEY to a valid Stripe test or live secret key.")
+    if not STRIPE_WEBHOOK_SECRET.startswith("whsec_"):
+        raise ImproperlyConfigured("Set STRIPE_WEBHOOK_SECRET to the configured Stripe webhook signing secret.")
+    if not all((EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)):
+        raise ImproperlyConfigured("Set EMAIL_HOST, EMAIL_HOST_USER, and EMAIL_HOST_PASSWORD in production.")
 
 # Standard Logging Configuration
 LOGGING = {

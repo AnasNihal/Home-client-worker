@@ -46,10 +46,17 @@ DATABASE_URL=<Render internal PostgreSQL URL>
 MEDIA_ROOT=/var/data/media
 STRIPE_SECRET_KEY=<Stripe live secret key>
 STRIPE_WEBHOOK_SECRET=<live webhook signing secret>
+EMAIL_HOST=<your SMTP provider host>
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=<SMTP username>
+EMAIL_HOST_PASSWORD=<SMTP password>
+DEFAULT_FROM_EMAIL=<verified sender address>
 ```
 
 Add a persistent disk mounted at `/var/data` if using local media storage. Add
-`OPENAI_API_KEY` only if the AI integration is enabled. Configure Stripe's
+verified SMTP credentials because the booking workflow sends status notifications.
+Add `OPENAI_API_KEY` only if the AI integration is enabled. Configure Stripe's
 production webhook to call
 `https://<api domain>/payments/stripe/webhook/`. Use test keys and the Stripe
 test webhook while validating a staging environment.
@@ -57,6 +64,13 @@ test webhook while validating a staging environment.
 The API only permits the single origin in `FRONTEND_BASE_URL` in production.
 Use separate staging and production services, databases, secrets, and domains
 so their origins and payment modes cannot be mixed.
+
+Create the first administrator from the Render shell after the initial schema
+migrations:
+
+```sh
+python manage.py createsuperuser
+```
 
 ## Deploy the frontend on Vercel
 
