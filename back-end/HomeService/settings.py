@@ -152,12 +152,25 @@ WSGI_APPLICATION = "HomeService.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-# Use PostgreSQL in production, SQLite in development
-if os.getenv("DATABASE_URL"):
+# Use SQLite for local development and require PostgreSQL in production. Falling
+# back to SQLite in a deployed process can silently lose data on ephemeral disks.
+database_url = os.getenv("DATABASE_URL", "").strip()
+if not DEBUG and not database_url:
+    raise ImproperlyConfigured("DATABASE_URL must point to PostgreSQL in production.")
+
+if database_url:
     import dj_database_url
+
     DATABASES = {
-        'default': dj_database_url.parse(os.getenv("DATABASE_URL"))  # pyright: ignore
+        "default": dj_database_url.parse(
+            database_url,
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=not DEBUG,
+        )
     }
+    if not DEBUG and DATABASES["default"]["ENGINE"] != "django.db.backends.postgresql":
+        raise ImproperlyConfigured("Production DATABASE_URL must use PostgreSQL.")
 else:
     DATABASES = {
         "default": {
