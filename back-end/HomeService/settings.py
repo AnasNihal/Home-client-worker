@@ -59,6 +59,8 @@ ALLOWED_HOSTS = [
 ]
 if not DEBUG and not ALLOWED_HOSTS:
     raise ImproperlyConfigured("ALLOWED_HOSTS must list the production API hostnames.")
+if not DEBUG and "*" in ALLOWED_HOSTS:
+    raise ImproperlyConfigured("ALLOWED_HOSTS must not use a wildcard in production.")
 
 
 # Application definition
@@ -110,6 +112,7 @@ if not DEBUG:
         or frontend_origin.fragment
     ):
         raise ImproperlyConfigured("FRONTEND_BASE_URL must be an HTTPS origin without a path.")
+    frontend_url = frontend_url.rstrip("/")
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -279,7 +282,7 @@ AUTH_USER_MODEL = 'HomeApp.CustomerUser'
 
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
+FRONTEND_BASE_URL = frontend_url or "http://localhost:3000"
 
 EMAIL_BACKEND = os.getenv(
     "EMAIL_BACKEND",
