@@ -139,8 +139,23 @@ export default function Register() {
         });
 
         const data = await res.json();
-        if (res.ok) window.location.href = '/worker/dashboard';
-        else setErrors({ submit: data.message || JSON.stringify(data) || 'Registration failed' });
+        if (res.ok && data.access && data.refresh) {
+          localStorage.setItem("access", data.access);
+          localStorage.setItem("refresh", data.refresh);
+          localStorage.setItem(
+            "user",
+            JSON.stringify({
+              username: data.username || formData.name,
+              role: data.role || 'worker',
+              is_superuser: Boolean(data.is_superuser),
+            })
+          );
+          navigate('/worker/dashboard', { replace: true });
+        } else if (res.ok) {
+          setErrors({ submit: 'Your worker account was created. Please sign in to continue.' });
+        } else {
+          setErrors({ submit: data.detail || data.message || JSON.stringify(data) || 'Registration failed' });
+        }
       } else {
         // Check if this is the first user in the system
         try {

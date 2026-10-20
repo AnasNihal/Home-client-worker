@@ -156,9 +156,15 @@ class HomeAppApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["username"], "newworker")
+        self.assertEqual(response.data["role"], "worker")
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
         user = User.objects.get(username="newworker")
         self.assertEqual(user.role, "worker")
         self.assertTrue(Worker.objects.filter(user=user).exists())
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+        self.assertEqual(self.client.get("/worker/dashboard/").status_code, status.HTTP_200_OK)
 
     def test_user_profile_get_and_update(self):
         self.authenticate(self.user)

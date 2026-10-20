@@ -119,8 +119,17 @@ def worker_register(request):
     if serializer.is_valid():
        try:
            with transaction.atomic():
-               serializer.save()
+               worker = serializer.save()
        except IntegrityError:
            return Response({"detail": "That username or email is already in use."}, status=status.HTTP_400_BAD_REQUEST)
-       return Response({'message':"Worker Registered"},status=status.HTTP_200_OK)
+       user = worker.user
+       refresh = RefreshToken.for_user(user)
+       return Response({
+           "message": "Worker Registered",
+           "access": str(refresh.access_token),
+           "refresh": str(refresh),
+           "username": user.username,
+           "role": user.role.lower(),
+           "is_superuser": user.is_superuser,
+       }, status=status.HTTP_200_OK)
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
