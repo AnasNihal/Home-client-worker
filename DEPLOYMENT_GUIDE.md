@@ -1,52 +1,58 @@
-# Production deployment
+# Deploy with Supabase Postgres and Railway
 
-This repo has a Django API in `back-end/` and a React single-page app in
-`front-end/homefront/`. Local development uses SQLite; production settings now
-require PostgreSQL and reject a missing or non-PostgreSQL `DATABASE_URL`.
+This repository contains a Django REST API in `back-end/` and a Vite/React
+single-page app in `front-end/homefront/`. SQLite remains the local development
+default. Production Django settings require a PostgreSQL `DATABASE_URL`.
 
-## Recommended setup
+The instructions below deploy the API and frontend as separate Railway
+services, with Supabase providing PostgreSQL. Railway Free is appropriate for a
+preview or low-traffic demo. Its current allowance is $1 of Railway usage per
+month, with up to 0.5 GB RAM and one replica per service; it is not a dependable
+production budget for two always-on services. Check current plan limits before
+launching, and expect service interruption if the usage allowance is exhausted.
 
-For the simplest production setup, run the Django API and managed PostgreSQL in
-the same Render region, and deploy the React app as a Vercel static site. Vercel
-builds this frontend with Vite and its rewrite sends client-side routes back to
-`index.html`. Use paid Render services and a paid PostgreSQL database for real
-customer data. Render's free web services sleep and its free Postgres expires
-after 30 days; neither is suitable for production.
+## 1. Create the Supabase database
 
-Worker and customer profile photos are stored as Django media files. For a small
-single-instance launch, attach a persistent Render disk mounted at `/var/data`
-and set `MEDIA_ROOT=/var/data/media`. The disk is required because service
-filesystems are otherwise ephemeral. For multiple API instances or higher
-availability, move uploaded media to an S3-compatible object store before
-scaling; a service-local disk is not shared storage and disables zero-downtime
-deploys on Render.
+1. Create a Supabase project in a region near the Railway services.
+2. Save the database password securely.
+3. In the Supabase dashboard, open **Connect** and copy the **Session pooler**
+   URI. Railway may need an IPv4-reachable endpoint; Supabase direct connections
+   are IPv6 unless the project has IPv4 connectivity enabled. The session pooler
+   supports long-running Django/Gunicorn processes and prepared statements.
+4. Replace the password placeholder. URL-encode reserved characters in the
+   password. Keep this value private; it will be added to Railway as
+   `DATABASE_URL`.
 
-## Deploy the API on Render
+Use the URI copied from the Supabase dashboard rather than constructing the
+pooler hostname or username. Avoid the Transaction pooler for this persistent
+Django service. Supabase recommends that mode for serverless connections and
+it has session-feature limitations.
 
-Create a paid Render PostgreSQL database and a Python web service from this
-repository. Configure the web service root directory as `back-end` and use:
+## 2. Deploy the Django API to Railway
+
+Create a Railway project and add a service from this GitHub repository. Set its
+**Root Directory** to `/back-end`. Configure the service as follows:
 
 | Setting | Value |
 |---|---|
 | Build command | `pip install -r requirements.txt && python manage.py collectstatic --noinput` |
 | Pre-deploy command | `python manage.py migrate` |
-| Start command | `gunicorn HomeService.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60 --access-logfile - --error-logfile -` |
-| Health check path | `/health/` |
+| Start command | Use the committed `Procfile` (`gunicorn` on Railway's `$PORT`) |
+| Healthcheck path | `/health/` |
 
-Connect the service to its database and copy the database's **internal** URL to
-`DATABASE_URL`. Set these environment variables in Render's service settings;
-never commit production values:
+Generate a public Railway domain for the API. Add these service variables in
+Railway (set Stripe and email values even for the initial production-mode
+deployment; Django validates them at startup):
 
 ```text
 DEBUG=False
-SECRET_KEY=<at least 50 random characters>
-ALLOWED_HOSTS=<api custom domain>,<service>.onrender.com
-FRONTEND_BASE_URL=https://<frontend domain>
-DATABASE_URL=<Render internal PostgreSQL URL>
-MEDIA_ROOT=/var/data/media
-STRIPE_SECRET_KEY=<Stripe live secret key>
-STRIPE_WEBHOOK_SECRET=<live webhook signing secret>
-EMAIL_HOST=<your SMTP provider host>
+SECRET_KEY=<at least 50 random characters generated for this deployment>
+ALLOWED_HOSTS=${{RAILWAY_PUBLIC_DOMAIN}}
+FRONTEND_BASE_URL=https://${{Frontend.RAILWAY_PUBLIC_DOMAIN}}
+DATABASE_URL=<Supabase Session pooler URI>
+STRIPE_SECRET_KEY=<Stripe test secret for staging, live secret only at launch>
+STRIPE_WEBHOOK_SECRET=<matching Stripe webhook signing secret>
+EMAIL_HOST=<SMTP provider host>
 EMAIL_PORT=587
 EMAIL_USE_TLS=True
 EMAIL_HOST_USER=<SMTP username>
@@ -54,82 +60,93 @@ EMAIL_HOST_PASSWORD=<SMTP password>
 DEFAULT_FROM_EMAIL=<verified sender address>
 ```
 
-Add a persistent disk mounted at `/var/data` if using local media storage. Add
-verified SMTP credentials because the booking workflow sends status notifications.
-Add `OPENAI_API_KEY` only if the AI integration is enabled. Configure Stripe's
-production webhook to call
-`https://<api domain>/payments/stripe/webhook/`. Use test keys and the Stripe
-test webhook while validating a staging environment.
+Replace `Frontend` in the Railway reference with the exact name of the frontend
+service. If you use custom domains, include the API domain and any custom API
+domain in `ALLOWED_HOSTS` (comma-separated, without schemes), and set
+`FRONTEND_BASE_URL` to the frontend's HTTPS origin. Railway reference variables
+are available to the build and runtime environments.
 
-The API only permits the single origin in `FRONTEND_BASE_URL` in production.
-Use separate staging and production services, databases, secrets, and domains
-so their origins and payment modes cannot be mixed.
+Set `OPENAI_API_KEY` only if the optional AI features are enabled. Never put
+database, Stripe, SMTP, Django, or OpenAI secrets in a `VITE_*` variable.
 
-Create the first administrator from the Render shell after the initial schema
-migrations:
+## 3. Deploy the React frontend to Railway
 
-```sh
-python manage.py createsuperuser
-```
+Add another service from the same repository and set its **Root Directory** to
+`/front-end/homefront`. Use:
 
-## Deploy the frontend on Vercel
+| Setting | Value |
+|---|---|
+| Build command | `npm ci && npm run build` |
+| Start command | `node server.mjs` |
+| Healthcheck path | `/health/` |
 
-Import the repository and set the project root to `front-end/homefront`.
-Vercel should use `npm run build` and output directory `dist`. Set this build
-environment variable:
+The included Node server serves the built Vite assets, supports React Router
+deep links, and reads Railway's `$PORT`. Generate a public domain for this
+service, then set:
 
 ```text
-VITE_API_URL=https://<api domain>
+VITE_API_URL=https://${{Backend.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
-The Vite build embeds this public API URL in the static app. Do not put Stripe,
-database, Django, or OpenAI secrets in any `VITE_*` variable. The committed
-`vercel.json` provides the history fallback needed by React Router on direct
-links and page refreshes.
+Replace `Backend` with the exact name of the API service. `VITE_API_URL` is
+embedded into the frontend at build time, so changes require a rebuild/redeploy.
+Set the API's `FRONTEND_BASE_URL` to this service's HTTPS origin.
 
-## Move existing SQLite data to PostgreSQL
+## 4. Uploaded profile photos
 
-The code change does not copy data automatically. If `back-end/db.sqlite3`
-contains real users, workers, bookings, reviews, or services, schedule a short
-maintenance window and migrate it explicitly:
+Do not rely on the container filesystem for uploads: it is ephemeral. Railway
+Free currently permits one volume of up to 0.5 GB per project. A volume can
+preserve local files, but this app currently serves uploaded media only in
+`DEBUG` mode, so a volume by itself does not make production profile photos
+available. Before accepting real users, configure an object-storage backend
+(or implement and secure a production media-serving path) and migrate existing
+photos. Keep media files out of the frontend build and source repository.
 
-1. Stop writes to the old app and make a separate backup of `db.sqlite3` and
-   the `back-end/media/` directory.
-2. With the old SQLite database selected and the current application code,
-   export application data:
+## 5. Move existing SQLite data (if needed)
 
-   ```sh
-   cd back-end
-   python manage.py dumpdata --natural-foreign --natural-primary \
-     --exclude=contenttypes --exclude=auth.permission \
-     --output=/tmp/home-service-data.json
-   ```
+The PostgreSQL connection does not copy local SQLite data. If
+`back-end/db.sqlite3` contains customer, worker, booking, or payment records,
+plan a maintenance window and back up the database and `back-end/media/` first.
+With the old SQLite database selected and current application code, export:
 
-3. Configure the production environment with the PostgreSQL `DATABASE_URL`,
-   then run the schema migrations and load the fixture using that same code and
-   environment:
+```sh
+cd back-end
+python manage.py dumpdata --natural-foreign --natural-primary \
+  --exclude=contenttypes --exclude=auth.permission \
+  --output=/tmp/home-service-data.json
+```
 
-   ```sh
-   python manage.py migrate
-   python manage.py loaddata /tmp/home-service-data.json
-   ```
+After Railway has `DATABASE_URL` set to Supabase, run migrations and import the
+fixture using the same code and environment:
 
-4. Copy the contents of the old media directory into the configured persistent
-   media directory, preserving the `user_image/` and `worker_image/` paths.
-5. Verify customer and worker login, profile images, listings, booking history,
-   and admin records on the new service before reopening traffic. Keep the
-   SQLite backup until the PostgreSQL data has been checked and backed up.
+```sh
+python manage.py migrate
+python manage.py loaddata /tmp/home-service-data.json
+```
 
-Run these commands from an environment that has the production secrets and
-database URL set securely. Do not put a production database URL in shell
-history, source control, or logs. For a new empty launch, skip the data export
-and `loaddata`; `migrate` is still required before serving traffic.
+Review the imported users, workers, bookings, payments, and admin records before
+reopening traffic. Keep the SQLite backup until PostgreSQL data has been
+verified and backed up. For a new empty launch, skip export/import and run the
+migrations only.
 
-## Release checks
+## 6. First release checklist
 
-Before enabling customer traffic, verify the deployed `/health/` returns HTTP
-200, run backend and frontend CI, confirm the correct production API URL and
-allowed host, exercise customer and worker registration/login and booking,
-complete Stripe test-mode checkout in staging, then configure live Stripe
-keys/webhook. Configure a recurring PostgreSQL backup and test restoration
-before relying on the database for customer data.
+- Confirm the Railway API's `/health/` returns HTTP 200 and Railway logs show
+  the Supabase database connection succeeding.
+- Confirm the React service loads and its requests use the deployed API domain.
+- Verify customer and worker registration/login, booking, and worker selection
+  against staging data.
+- Use Stripe test credentials and a test webhook before enabling live payments.
+- Configure SMTP and verify booking notifications arrive.
+- Finish production media storage before accepting profile-photo uploads.
+- Set usage alerts and understand that Railway Free's monthly credit can be
+  exhausted. Use an appropriate paid Railway plan before depending on this for
+  customer-facing production traffic.
+- Configure and test database backups/restoration in Supabase.
+
+## References
+
+- [Railway Django deployment guide](https://docs.railway.com/guides/django)
+- [Railway pricing and resource limits](https://docs.railway.com/pricing/plans)
+- [Railway frontend build variables](https://docs.railway.com/guides/frontend-environment-variables)
+- [Supabase Postgres connection methods](https://supabase.com/docs/guides/database/connecting-to-postgres)
